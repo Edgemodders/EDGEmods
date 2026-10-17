@@ -25,6 +25,8 @@ nav:
     url: /
   - title: Design
     url: /design.html
+  - title: Format
+    url: /manifest.html
   - title: Research
     url: /research.html
   - title: Dev setup

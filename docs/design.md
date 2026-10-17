@@ -2,7 +2,7 @@
 
 EDGEmods is a mod website for Cyberpunk 2077 that hosts no mod files. Every mod lives in its author's own GitHub repository. EDGEmods is a **registry**: a list of those repositories, checked on the way in, and a website that builds a searchable catalogue and a page for each mod from what is in its repository. A VS Code extension, also called EDGEmods, browses and installs mods, and publishes and manages a modder's own mods. The other EDGE tools read the same registry.
 
-**Status: draft 0.2, 2026-10-17.** Sections marked **Decided** were agreed with the owner in chat on 2026-10-17. Sections marked **Proposed** are not decided yet. The research behind this page is in [R0 research](research.html). Next: the remaining open questions, then the metadata format.
+**Status: draft 0.2, 2026-10-17.** Sections marked **Decided** were agreed with the owner in chat on 2026-10-17. Sections marked **Proposed** are not decided yet. The research behind this page is in [R0 research](research.html). On 2026-10-17 the owner started the build: R1, the metadata format, is drafted as code and reviewed as it is built.
 
 ## The idea, as the owner put it (Decided)
 
@@ -77,20 +77,13 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 - Each file has a role (required, optional, choose one and so on) and a free-text note. "Choose one" covers variants that override the same thing, such as different body meshes, so one mod offers options instead of becoming many mods.
 - A mod lists its requirements: other EDGEmods mods, picked from a search box, or external links.
 
-**Proposed:** the metadata format gets its own page once agreed. A starting point:
-
-| Path | What it is |
-|---|---|
-| `edgemods.json` | The metadata: id, name, short description, author, license, type, tags, version, game version, card image, gallery order, requirements, and the files of each release with their role and note |
-| `README.md` | The mod page's body, in GitHub-flavored markdown |
-| `images/` | The card image and the gallery |
-| `CHANGELOG.md` | Optional; shown per version |
-| Releases | One per version, tagged `vX.Y.Z`, with the mod's files as release assets. Files over 100 MB cannot go in git, while release assets can be up to 2 GiB each |
+**Proposed:** the layout and every field of `edgemods.json` are on their own page, [the format](manifest.html), built in R1 for review.
 
 ## The website
 
 **Decided:**
 
+- The website lives at https://edgemods.ai.
 - A Node service, an Express server as in TheLostRealms, in front of a `node:sqlite` database, backed up to S3 with Litestream.
 - Anyone can browse anonymously: cards, search, sort, facets, and mod pages with their releases and files.
 - Downloading, and seeing where a mod comes from (its GitHub repository), need a registered account. This is a **soft gate**, a reason to register, not access control: the registry and the mod repositories are public on GitHub.
@@ -185,7 +178,7 @@ A modder who signs in with email or Google can browse but does not see their pub
 | REDdeck | Owns installing. `REDdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff`, but no install from a downloaded archive. **First request issue (proposed):** something like `installArchive(path, { source: 'edgemods', modId, version, files })`, so EDGEmods versions join REDdeck's families the way Nexus versions do |
 | REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issue (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing |
 | GitHub | Mod repositories and releases are made with the modder's own GitHub account, through VS Code's GitHub sign-in, with the `public_repo` scope only |
-| EDGEweb | Owns https://edgemodders.ai. Where the website lives is open |
+| EDGEweb | Owns https://edgemodders.ai, the platform's site; EDGEmods has its own domain, https://edgemods.ai. EDGEweb can link to it |
 | EDGEkit, EDGEplugin | Bundle EDGEmods, and teach it to the assistant, once released |
 
 ## The MCP server (Proposed)
@@ -216,7 +209,6 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | Question | Notes |
 |---|---|
 | The metadata format and the publishing form's fields | Next, on their own page |
-| Where the website lives | A path on edgemodders.ai, a subdomain, or another domain; with EDGEweb |
 | Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |

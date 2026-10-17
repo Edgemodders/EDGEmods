@@ -17,13 +17,15 @@ The EDGEmods extension for VS Code browses the registry and installs mods throug
 **[Read the docs](https://edgemodders.github.io/EDGEmods/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: scaffold.** The repository, the branding, the docs site and the design (draft 0.2, in progress) exist; there is no code and no mod website yet. Next: finishing R0, the design.
+> **Status: early build.** The design (draft 0.2) is in progress, and R1, the mod metadata format, is built for review: [edgemods.json](https://edgemodders.github.io/EDGEmods/manifest.html). There is no mod website yet.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `docs/` | Developer documentation: the design and dev setup |
+| `packages/format` | The `edgemods.json` format: types, a validator that explains problems in plain words, folder and release checks, the generated JSON schema |
+| `examples/example-mod` | An example mod repository that passes the checks |
+| `docs/` | Developer documentation: the design, the format, research, dev setup |
 | `tools/brand/` | Renders the banner, icon and badges; `activity.svg` is the activity bar icon |
 
 ## Legal
