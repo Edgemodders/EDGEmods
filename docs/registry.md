@@ -2,7 +2,7 @@
 
 The registry is the list of mods on EDGEmods: one small file per mod in [`registry/`](https://github.com/Edgemodders/EDGEmods/tree/main/registry). Publishing a mod opens a pull request that adds its file. The merge checks look at the mod's repository and release, report in plain words on the pull request, and merge it by themselves when every check passes.
 
-**Status: R2, built 2026-10-17, for the owner's review.** The checks run, and the EDGEmods GitHub App (`edgemods-registry`) is set up to merge (checked 2026-10-17); a real publish pull request has not been through yet. The code is in [`packages/checks`](https://github.com/Edgemodders/EDGEmods/tree/main/packages/checks) and the workflow in [`.github/workflows/registry.yml`](https://github.com/Edgemodders/EDGEmods/blob/main/.github/workflows/registry.yml).
+**Status: R2, built 2026-10-17, for the owner's review.** The checks run, and the EDGEmods GitHub App (`edgemods-registry`) is set up to merge. **First end-to-end test, 2026-10-17:** [pull request #1](https://github.com/Edgemodders/EDGEmods/pull/1) published the test mod [CyberbuildsAI/edgemods-test-mod](https://github.com/CyberbuildsAI/edgemods-test-mod); every step passed, ClamAV found it clean, and the App merged it by itself. The code is in [`packages/checks`](https://github.com/Edgemodders/EDGEmods/tree/main/packages/checks) and the workflow in [`.github/workflows/registry.yml`](https://github.com/Edgemodders/EDGEmods/blob/main/.github/workflows/registry.yml).
 
 ## A registry file
 
@@ -73,4 +73,4 @@ ClamAV (`clamscan`) and 7-Zip (`7z`) must be installed for the downloads step; o
 |---|---|
 | Organization-owned mods | Refused for now: the checks cannot see who in an organization may publish |
 | VirusTotal | ClamAV runs now. VirusTotal's terms for this use still need reading; it could be added as a second scanner |
-| An end-to-end test | Needs a real test mod repository and a real pull request: the owner's go-ahead first, since both are public |
+| Further end-to-end tests | The first passed (pull request #1). Failing cases on GitHub (a bad release, a dirty download) need new public pull requests: the owner's go-ahead first. The unit tests cover them with a fake GitHub |

@@ -21,7 +21,7 @@ As of 2026-10-17.
 |---|---|
 | R0 Design | In progress: draft 0.2 |
 | R1 Format | Built for review: schema, validator, folder and release checks, example |
-| R2 Registry and checks | Built for review: the registry folder, the merge checks, the workflow. The GitHub App is set up; no real publish has been through yet |
+| R2 Registry and checks | Built for review: the registry folder, the merge checks, the workflow. The GitHub App is set up; the first real publish (a test mod, pull request #1) passed and merged by itself |
 | R3 Website | Prototype built for the owner's review; the server not started |
 | R4 Browse and install | Not started |
 | R5 Publish | Not started |
