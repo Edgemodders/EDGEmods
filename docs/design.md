@@ -44,6 +44,18 @@ EDGE brings modding to everyone, especially non-coders: easy, fun and fast. Shar
 
 Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds the button that opens it. The form's full set of actions is designed later.
 
+### Publishing, step by step (Decided, the owner, 2026-10-17)
+
+| # | Where | What happens |
+|---|---|---|
+| 1 | REDcode | The modder builds the mod and clicks REDcode's Publish button |
+| 2 | REDcode → EDGEmods | REDcode calls the EDGEmods extension (which has its own activity bar icon) to start publishing |
+| 3 | The EDGEmods form | The form opens with defaults from the REDcode project: name, version, files and so on. The modder fills in the rest |
+| 4 | GitHub sign-in, once | EDGEmods asks the modder to sign in with GitHub and approve its access, **before** anything is created |
+| 5 | The extension | Creates the repository and fills it: `edgemods.json`, the README, images, Issues and Discussions turned on, EDGEmods' webhook, the release with its files, then the registry pull request |
+
+One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in permissions (OAuth scopes) apply to the whole account, not to one repository, so `public_repo`, approved before the repository exists, also covers its Issues, Discussions and releases afterwards, and `write:repo_hook` covers the webhook. A second approval would only be needed with per-repository access (a GitHub App), which EDGEmods does not use on mod repositories. Details in "Talking about a mod".
+
 ## The registry and its checks
 
 **Decided:**
