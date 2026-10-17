@@ -91,7 +91,7 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 
 **Decided:**
 
-- A Node service in front of a `node:sqlite` database, backed up to S3 with Litestream.
+- A Node service, an Express server as in TheLostRealms, in front of a `node:sqlite` database, backed up to S3 with Litestream.
 - Anyone can browse anonymously: cards, search, sort, facets, and mod pages with their releases and files.
 - Downloading, and seeing where a mod comes from (its GitHub repository), need a registered account. This is a **soft gate**, a reason to register, not access control: the registry and the mod repositories are public on GitHub.
 - Likes are the website's own, one per signed-in account.
@@ -127,8 +127,23 @@ A modder who signs in with email or Google can browse but does not see their pub
 | API | One check that accepts the website's cookie or the extension's Bearer token (an Auth0 access token, RS256, audience checked), with a same-origin check for writes through the cookie |
 | Extension sign-in | An Auth0 sign-in provider in VS Code: the system browser with a loopback PKCE redirect; the refresh token kept in VS Code's secret storage |
 | Modder check | Publishing endpoints require an Auth0 user id from the GitHub connection, which carries the numeric GitHub user id. Before publishing, the extension checks that its VS Code GitHub sign-in is the same GitHub user |
-| Admin | An allow-list of verified emails, as in TheLostRealms |
 | Code | Based on the Apache-2.0 sign-in in TheLostRealms' `Registry/`, with its notice kept. TheLostRealms' `Server/` files are under the Business Source License and are not copied |
+
+## Administration
+
+**Decided:** the server's settings hold a list of admin email accounts, as in TheLostRealms. The server has an admin page for managing user accounts and mods: editing, removing, blocking and so on, simple at first.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| Two kinds of data | The database keeps rebuildable index tables (from the registry and the repositories) apart from site tables (users, likes, downloads, sessions, moderation). A rebuild replaces only the index tables | A rebuild must not bring back a removed mod or wipe likes |
+| Remove or hide a mod | A moderation status per mod (visible, hidden, blocked) that the indexer respects. Removing also opens a pull request that deletes the registry file | The registry on `main` is the source of truth; a removal only on the website would return on the next rebuild |
+| Edit a mod | Admin overrides on top of the modder's metadata: tags, type, NSFW, featured. The modder's repository is never changed | The repository belongs to the modder |
+| Block a user | Revokes their sessions and refuses sign-in. Blocking a modder also stops publishing: the merge checks ask the EDGEmods API whether the GitHub user or repository is blocked | The merge checks run on GitHub, not on the server |
+| Admin sign-in | Verified emails on the list only; an empty list admits no one; a same-origin check on every admin action | As in TheLostRealms |
+| Audit log | Every admin action, with who, what and when | Needed once there are several admins |
+| Spot reviews | The admin page lists recently auto-merged mods, and later the agent review's results | The review after auto-merge |
 
 ## The EDGEmods extension (Decided)
 
@@ -170,7 +185,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | **R0 Design** | This document and the metadata format's page | The owner agrees the design |
 | **R1 Format** | The metadata schema, a validator, an example mod repository | The example validates; a broken one is explained in plain words |
 | **R2 Registry and checks** | The registry folder, the merge checks (structure, binary and malware), the GitHub App, auto-merge | A pull request for the example mod merges by itself; a bad one is refused with a clear reason |
-| **R3 Website** | The indexer, the database and Litestream, the Node service, Auth0, browse, search, the mod page, downloads | The example mod has a page, found by search, downloadable after sign-in |
+| **R3 Website** | The indexer, the database and Litestream, the Express service, Auth0, browse, search, the mod page, downloads, the admin page | The example mod has a page, found by search, downloadable after sign-in |
 | **R4 Browse and install** | The extension's browse view, Auth0 sign-in, install through REDdeck, Install links from the website | A mod found in VS Code is installed through REDdeck and runs in the game |
 | **R5 Publish** | The publishing form, REDcode's button, the repository and release, the registry pull request, My mods, updates | A non-coder publishes a mod from REDcode and sees its page |
 | **R6 Ship** | The agent review, docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | Someone outside the team publishes a mod from the docs alone |
@@ -181,6 +196,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 |---|---|
 | The metadata format and the publishing form's fields | Next, on their own page |
 | Where the website lives | A path on edgemodders.ai, a subdomain, or another domain; with EDGEweb |
+| Where the blocklist lives | Proposed: on the server, behind an API the merge checks call, rather than a public file in this repository |
 | Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |
