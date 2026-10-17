@@ -123,6 +123,7 @@ One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in
 - A mod page also has **Discussions** and **Issues**: simple renderings of the GitHub Discussions and Issues of the mod's repository, which EDGEmods reads and writes through the GitHub API.
 - Reading GitHub fresh on each view is preferred, so EDGEmods does not keep a second copy, unless that makes pages slow; then webhooks and a local copy.
 - **Modders never have to go to GitHub.** The EDGEmods extension and website do everything. The modder's GitHub sign-in authorizes what the extension needs to set up and manage the mod's repository; nothing else is installed or clicked on GitHub.
+- **The plain GitHub sign-in, for now** (the owner, 2026-10-17): it grants access to all of the modder's public repositories, not only the mod's, as many VS Code extensions already ask. If modders push back, EDGEmods moves to narrower access (see "Open questions").
 
 **Proposed:**
 
@@ -286,6 +287,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? EDGEdeck already speaks to Nexus |
 | Other git hosts | GitHub only for now |
+| Narrower GitHub access | If modders object to granting all their public repositories: an EDGEmods GitHub App installed on selected repositories only. To find out first with a test App: can it create the repository for the modder, and can a new repository join the installation without GitHub's install page? |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
 
 ## Sources
