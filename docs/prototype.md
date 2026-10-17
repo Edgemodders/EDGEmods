@@ -30,7 +30,7 @@ The point of building the prototype first: each item below is something the R3 s
 | Likes | One per account per mod, toggled; a list of liked mods |
 | Settings | Show adult mods (off by default, never for visitors); download my data; delete my account |
 | My mods | The modder's mods by their GitHub id (from the Auth0 GitHub sign-in), **including publish attempts whose checks failed**. So the registry workflow reports each result to the server (with the registry secret), not only on the pull request |
-| Comments, Discussions, Issues | Comments and comment likes in the database. Discussions and Issues read live from GitHub, cached briefly, the cache dropped by the mod repository's webhook (which the extension adds when publishing); posting as the person for GitHub accounts |
+| Comments, Discussions, Issues | Comments and comment likes in the database. Discussions and Issues read live from GitHub, cached briefly, the cache dropped by the mod repository's webhook (which the extension adds when publishing); posting from the website as the person for GitHub accounts, after a one-time "connect GitHub for posting", with their token kept encrypted |
 | Reports | Signed-in people report a mod with a reason; admins see a queue and close reports |
 | Admin | Overview counts; spot review of recently merged mods, marked reviewed; mods: edit EDGEmods' tags, type, featured, hide, remove (which opens a pull request deleting the registry file, so the server needs the GitHub App too); users: sign-in method, joined, last seen, block; the private blocklist (GitHub accounts, repositories, site accounts, with a private reason); the audit log |
 
