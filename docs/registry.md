@@ -2,7 +2,7 @@
 
 The registry is the list of mods on EDGEmods: one small file per mod in [`registry/`](https://github.com/Edgemodders/EDGEmods/tree/main/registry). Publishing a mod opens a pull request that adds its file. The merge checks look at the mod's repository and release, report in plain words on the pull request, and merge it by themselves when every check passes.
 
-**Status: R2, built 2026-10-17, for the owner's review.** The checks run; merging by themselves waits for the EDGEmods GitHub App (see "Setup" below). The code is in [`packages/checks`](https://github.com/Edgemodders/EDGEmods/tree/main/packages/checks) and the workflow in [`.github/workflows/registry.yml`](https://github.com/Edgemodders/EDGEmods/blob/main/.github/workflows/registry.yml).
+**Status: R2, built 2026-10-17, for the owner's review.** The checks run, and the EDGEmods GitHub App (`edgemods-registry`) is set up to merge (checked 2026-10-17); a real publish pull request has not been through yet. The code is in [`packages/checks`](https://github.com/Edgemodders/EDGEmods/tree/main/packages/checks) and the workflow in [`.github/workflows/registry.yml`](https://github.com/Edgemodders/EDGEmods/blob/main/.github/workflows/registry.yml).
 
 ## A registry file
 
@@ -47,7 +47,7 @@ The report on the pull request lists every step, the problems and advice, and a 
 
 ## Setup (the owner, on GitHub)
 
-Until these are done, the checks run and report, and the report says the pull request will merge once the App is set up.
+Steps 1 to 3 were done on 2026-10-17. Without them, the checks still run and report, and the report says the pull request will merge once the App is set up. To check the setup at any time, run the **App check** workflow from the Actions tab ([`.github/workflows/app-check.yml`](https://github.com/Edgemodders/EDGEmods/blob/main/.github/workflows/app-check.yml)): it gets an App token and fails if the variable, the key or the installation is missing. `EDGEMODS_APP_ID` must be a variable, not a secret.
 
 | Step | Where | What |
 |---|---|---|
