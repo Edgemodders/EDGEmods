@@ -4,4 +4,6 @@ export { parseManifest, validateManifest, type Issue, type IssueLevel, type Vali
 export { checkRelease, releaseTag, formatBytes, type ReleaseAsset, type ReleaseInfo } from './release.js';
 export { buildSchema } from './schema.js';
 export { readImageInfo, formatFromName, type ImageFormat, type ImageInfo } from './images.js';
-// checkModFolder reads the disk, so it lives at '@edgemodders/edgemods-format/folder' and this entry stays browser-safe.
+export { checkModFiles, type FileEntry, type FilesResult, type ModFiles } from './files.js';
+// diskFiles and checkModFolder read the disk, so they live at '@edgemodders/edgemods-format/folder' and this entry
+// stays browser-safe.

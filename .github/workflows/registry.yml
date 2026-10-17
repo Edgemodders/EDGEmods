@@ -1,0 +1,113 @@
+# The merge checks for publish pull requests: a modder's pull request adds registry/<login>/<mod-id>.json.
+#
+# pull_request_target, so it runs for first-time contributors (every new modder) without waiting for approval.
+# That trigger runs with write access, so this workflow NEVER checks out or runs the pull request's code:
+# actions/checkout takes the base branch (the checks' own code), and the checks read the pull request's one
+# file and the mod's repository through the API, as data. Values from the pull request reach the shell only
+# through environment variables.
+#
+# When every check passes, the EDGEmods GitHub App merges (a merge made with the workflow's own token would not
+# start the website's rebuild on main). Until the App is set up, the checks still run and report.
+# Setup: docs/registry.md.
+
+name: Registry checks
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'registry/**'
+
+permissions: {}
+
+concurrency:
+  group: registry-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out the checks (the base branch, never the pull request)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install ClamAV and 7-Zip
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q clamav p7zip-full
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam --quiet
+
+      - name: Build the checks
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run the checks
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EDGEMODS_API_URL: ${{ vars.EDGEMODS_API_URL }}
+          EDGEMODS_REGISTRY_SECRET: ${{ secrets.EDGEMODS_REGISTRY_SECRET }}
+          HAS_APP: ${{ vars.EDGEMODS_APP_ID != '' }}
+        run: |
+          set +e
+          extra=""
+          [ "$HAS_APP" = "true" ] || extra="--no-merge-note"
+          node packages/checks/bin/registry-check.mjs --repo "$GITHUB_REPOSITORY" --pr "$PR" --base "$BASE" \
+            --report report.md --result result.json $extra
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post the report on the pull request
+        if: steps.check.outputs.code == '0' || steps.check.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- edgemods-registry-check -->"))) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@report.md > /dev/null
+          else
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file report.md
+          fi
+
+      - name: Get the EDGEmods App's token
+        id: app
+        if: steps.check.outputs.code == '0' && vars.EDGEMODS_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.EDGEMODS_APP_ID }}
+          private-key: ${{ secrets.EDGEMODS_APP_PRIVATE_KEY }}
+
+      - name: Merge
+        if: steps.app.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        # --match-head-commit: merge exactly what was checked, never a commit pushed since.
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
+
+      - name: The verdict
+        if: always()
+        env:
+          CODE: ${{ steps.check.outputs.code }}
+        run: |
+          case "$CODE" in
+            0) echo "Every check passed." ;;
+            1) echo "::error::The mod did not pass the checks. The report on the pull request says why."; exit 1 ;;
+            *) echo "::error::The checks could not run."; exit 1 ;;
+          esac

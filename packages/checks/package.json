@@ -1,0 +1,28 @@
+{
+  "name": "@edgemodders/edgemods-checks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The registry's merge checks: a publish pull request, the mod's repository, its release, and what its downloads contain.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "edgemods-registry-check": "bin/registry-check.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@edgemodders/edgemods-format": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}
