@@ -207,7 +207,7 @@
       const downloads = mods.reduce((n, m) => n + m.downloads, 0);
       return `<header class="hero wrap">
           <div class="eyebrow">The EDGE mod registry for Cyberpunk 2077</div>
-          <h1>Mods, straight from <span>git</span></h1>
+          <h1>Open-source <span>modding</span></h1>
           <p class="lede">Find, install and share mods. Every mod lives in its author's own repository: EDGEmods checks it, lists it, and installs it through EDGEdeck in one click.</p>
           <div class="cta"><a class="btn go" href="browse.html">Browse mods</a><a class="btn" href="publish.html">Publish a mod</a></div>
           <div class="stats"><span><b>${mods.length}</b>mods</span><span><b>${modders}</b>modders</span><span><b>${num(downloads)}</b>downloads</span></div>
