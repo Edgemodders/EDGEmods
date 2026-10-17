@@ -135,16 +135,16 @@ A modder who signs in with email or Google can browse but does not see their pub
 
 - The EDGEmods service runs on the same server as TheLostRealms, and its databases are backed up by Litestream as TheLostRealms' are, with an EDGEmods entry added to the configuration.
 - It is installed and updated the same way as TheLostRealms' services: one shell script that installs or updates the service, so every service on the server is handled alike.
+- EDGEmods stays separate from TheLostRealms for now, but done identically: its own install script (not part of TheLostRealms' `Deploy/install.sh`), its own Litestream unit and config, and its own S3 bucket for backups.
 
 **Proposed:**
 
 | Topic | Proposal | Why |
 |---|---|---|
-| Litestream | The server runs one Litestream 0.5.17 daemon. Its `/etc/litestream.yml` is written by TheLostRealms' `Deploy/setup-litestream.sh`, which overwrites hand edits. Either **A**: that script also picks up databases other apps list (for example `/etc/litestream.d/*.yml`), a small change in TheLostRealms' repository; or **B**: EDGEmods runs its own Litestream unit and config. A is preferred: one daemon, one config | A hand-added entry would vanish on the script's next run |
-| Bucket | The existing versioned bucket, under its own prefix: `s3://thelostrealms-backups/edgemods/site`. The instance role's policy gains the `edgemods/*` prefix if it is scoped by prefix | Reuses the role that cannot delete old versions; no new AWS setup |
+| Litestream | A `litestream-edgemods` unit with its own `/etc/litestream-edgemods.yml`, pinned to the same Litestream version (0.5.17), written by EDGEmods' own setup step, which proves a sync reached the bucket before enabling it. It replicates `site.db` only. TheLostRealms' `/etc/litestream.yml` is not touched: its script overwrites hand edits | Separate, and identical in practice |
+| Bucket | A new versioned, private, encrypted bucket for EDGEmods. Access through the server's instance role, no keys on disk: a policy statement allowing Put, Get, Delete and List on that bucket, and denying `DeleteObjectVersion` and turning versioning off, as TheLostRealms' `LitestreamReplication` policy does. The owner creates the bucket and the policy | A taken server can disrupt the backup but not destroy it |
 | Install script | `sudo ./deploy/setup-edgemods.sh [--dry-run]`, written fresh to TheLostRealms' conventions (its scripts are Business Source License). Re-runnable: a rerun deploys the current commit and restarts. Preflight (root, systemd, Node 22.13+ for `node:sqlite`, a full checkout); service account `edgemods`; the app copied to `/opt/edgemods`; `/etc/edgemods.env` added from the example if missing and never overwritten; data in `/var/lib/edgemods` through the unit's `StateDirectory`; a hardened `edgemods.service` with `daemon-reload` when it changes; restart and prove `/healthz` answers; stop at the first failure and name it; ports read from the code | Every service on the server is installed and updated alike |
-| Deploy files | `deploy/` holds the script, the unit, the env example, the Litestream snippet and an nginx snippet that a person includes (the live nginx config is never edited) | EDGEmods deploys without changes to TheLostRealms beyond the Litestream hook |
-| The server's installer | Optionally, EDGEmods also joins TheLostRealms' `Deploy/install.sh` (`--only edgemods`), a small change in TheLostRealms' repository | One installer for the whole server |
+| Deploy files | `deploy/` holds the script, the units, the env example, the Litestream config and an nginx snippet that a person includes (the live nginx config is never edited) | EDGEmods deploys without any change to TheLostRealms |
 
 ## Administration
 
@@ -217,8 +217,6 @@ To be agreed. The format comes first, because the checks, the website and the ex
 |---|---|
 | The metadata format and the publishing form's fields | Next, on their own page |
 | Where the website lives | A path on edgemodders.ai, a subdomain, or another domain; with EDGEweb |
-| Litestream on the shared server | Option A (TheLostRealms' script picks up other apps' databases) or B (EDGEmods' own unit); the bucket; see "Hosting" |
-| The server's installer | Whether EDGEmods also joins TheLostRealms' `Deploy/install.sh` |
 | Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |
