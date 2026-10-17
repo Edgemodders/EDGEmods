@@ -129,15 +129,31 @@ A modder who signs in with email or Google can browse but does not see their pub
 | Modder check | Publishing endpoints require an Auth0 user id from the GitHub connection, which carries the numeric GitHub user id. Before publishing, the extension checks that its VS Code GitHub sign-in is the same GitHub user |
 | Code | Based on the Apache-2.0 sign-in in TheLostRealms' `Registry/`, with its notice kept. TheLostRealms' `Server/` files are under the Business Source License and are not copied |
 
-## Administration
+## Hosting
 
-**Decided:** the server's settings hold a list of admin email accounts, as in TheLostRealms. The server has an admin page for managing user accounts and mods: editing, removing, blocking and so on, simple at first.
+**Decided:** the EDGEmods service runs on the same server as TheLostRealms, and its databases are backed up by Litestream as TheLostRealms' are, with an EDGEmods entry added to the configuration.
 
 **Proposed:**
 
 | Topic | Proposal | Why |
 |---|---|---|
-| Two kinds of data | The database keeps rebuildable index tables (from the registry and the repositories) apart from site tables (users, likes, downloads, sessions, moderation). A rebuild replaces only the index tables | A rebuild must not bring back a removed mod or wipe likes |
+| Litestream | The server runs one Litestream 0.5.17 daemon. Its `/etc/litestream.yml` is written by TheLostRealms' `Deploy/setup-litestream.sh`, which overwrites hand edits. Either **A**: that script also picks up databases other apps list (for example `/etc/litestream.d/*.yml`), a small change in TheLostRealms' repository; or **B**: EDGEmods runs its own Litestream unit and config. A is preferred: one daemon, one config | A hand-added entry would vanish on the script's next run |
+| Bucket | The existing versioned bucket, under its own prefix: `s3://thelostrealms-backups/edgemods/site`. The instance role's policy gains the `edgemods/*` prefix if it is scoped by prefix | Reuses the role that cannot delete old versions; no new AWS setup |
+| Deploy files | This repository carries its own systemd unit (hardened as TheLostRealms' units are), `/etc/edgemods.env` example, Litestream snippet, nginx site and install script, following TheLostRealms' `Deploy/` pattern | EDGEmods deploys without changes to TheLostRealms beyond the Litestream hook |
+
+## Administration
+
+**Decided:**
+
+- The server's settings hold a list of admin email accounts, as in TheLostRealms.
+- The server has an admin page for managing user accounts and mods: editing, removing, blocking and so on, simple at first.
+- The blocklist is private. It lives in the SQLite database, where changes are transactional and take effect at once, backed up to S3 by Litestream.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| Two kinds of data | Two database files. `site.db`: users, sessions, likes, downloads, moderation, the blocklist, the audit log; backed up by Litestream. `index.db`: rebuilt from the registry and the repositories; no backup needed | A rebuild must not bring back a removed mod, wipe likes or touch the blocklist |
 | Remove or hide a mod | A moderation status per mod (visible, hidden, blocked) that the indexer respects. Removing also opens a pull request that deletes the registry file | The registry on `main` is the source of truth; a removal only on the website would return on the next rebuild |
 | Edit a mod | Admin overrides on top of the modder's metadata: tags, type, NSFW, featured. The modder's repository is never changed | The repository belongs to the modder |
 | Block a user | Revokes their sessions and refuses sign-in. Blocking a modder also stops publishing: the merge checks ask the EDGEmods API whether the GitHub user or repository is blocked | The merge checks run on GitHub, not on the server |
@@ -196,7 +212,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 |---|---|
 | The metadata format and the publishing form's fields | Next, on their own page |
 | Where the website lives | A path on edgemodders.ai, a subdomain, or another domain; with EDGEweb |
-| Where the blocklist lives | Proposed: on the server, behind an API the merge checks call, rather than a public file in this repository |
+| Litestream on the shared server | Option A (TheLostRealms' script picks up other apps' databases) or B (EDGEmods' own unit); see "Hosting" |
 | Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |
