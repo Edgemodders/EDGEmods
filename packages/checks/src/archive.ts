@@ -124,7 +124,8 @@ export async function list7z(file: string, tool = '7z'): Promise<ArchiveEntry[]>
       if (eq > 0) fields.set(line.slice(0, eq), line.slice(eq + 3));
     }
     const path = fields.get('Path');
-    if (!path || fields.get('Folder') === '+') continue;
+    // Folders say "Folder = +", or only "Attributes = D…" in some 7z builds (p7zip on Linux).
+    if (!path || fields.get('Folder') === '+' || /^D/.test(fields.get('Attributes') ?? '')) continue;
     entries.push({ path: path.replace(/\\/g, '/'), size: Number(fields.get('Size') ?? 0), encrypted: fields.get('Encrypted') === '+' });
   }
   return entries;
