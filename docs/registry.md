@@ -54,7 +54,7 @@ Until these are done, the checks run and report, and the report says the pull re
 | 1. Create the EDGEmods GitHub App | github.com/organizations/Edgemodders/settings/apps/new (the organization's settings, so the App belongs to Edgemodders, not a personal account) | Name "EDGEmods registry". Untick Webhook "Active". Repository permissions: Contents read and write, Pull requests read and write, Metadata read. "Where can this GitHub App be installed?": Only on this account. Create it |
 | 2. Install it on EDGEmods only | The App's page > Install App > Edgemodders > Install | Choose "Only select repositories" and pick EDGEmods. The repository is chosen here, not on the create form |
 | 3. Give the workflow the App | EDGEmods > Settings > Secrets and variables > Actions | Variable `EDGEMODS_APP_ID` (the App ID shown on the App's page). Secret `EDGEMODS_APP_PRIVATE_KEY`: on the App's page, Private keys > Generate a private key, then paste the whole downloaded `.pem` file |
-| 4. Allow it to merge | EDGEmods > Settings > Rules | If `main` has a ruleset or branch protection that requires reviews, add the App to its bypass list |
+| 4. Allow it to merge (only if `main` has rules) | EDGEmods > Settings > Rules > Rulesets | Skip this when there are no rulesets (true on 2026-10-17). If one is added later that requires pull requests or reviews on `main`, add the App to its bypass list. Do not create a ruleset just for this |
 | 5. Later, with the server (R3) | The same Actions settings | Variable `EDGEMODS_API_URL` and secret `EDGEMODS_REGISTRY_SECRET` connect the private blocklist. Until then the report says "Blocklist: not connected yet" |
 
 ## Run the checks by hand
