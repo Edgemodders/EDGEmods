@@ -65,7 +65,7 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 | Binary and malware step | List each release file's contents without extracting anything to run; mark `.dll`, `.exe`, `.asi` and scripts so the mod page says so in plain words; record hashes; scan with ClamAV on the CI runner (built); VirusTotal could be added once its terms for this use are read | RED4ext plugins run inside the game with the player's permissions |
 | Merging | A small EDGEmods GitHub App merges, and reads repositories for the indexer | A merge made with the workflow's own token would not start the rebuild on `main`; an App also has higher API limits |
 | Agent review | Returns a fixed, structured answer only: pass or fail, plus tags from an agreed list. It can block a mod or add tags, never approve one by itself. No write access, no secrets | Mod READMEs are untrusted and could try to instruct it |
-| Updates | No pull request for a new version. The indexer reads each mod's latest release on a schedule and runs the same checks on anything new. A failing release hides the mod until it is fixed; the registry entry stays | The website must see new releases, which do not touch `main` |
+| Updates | No pull request for a new version. The indexer hears of each new release from the EDGEmods App's `release` webhook (see "Talking about a mod"), with a check on a schedule as well, and runs the same checks on anything new. A failing release hides the mod until it is fixed; the registry entry stays | The website must see new releases, which do not touch `main` |
 | Removal | A repository that is deleted or taken down drops off the website on the next pass; the registry file stays as history | |
 
 ## A mod's repository
@@ -102,6 +102,31 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 | Sanitizing | READMEs are untrusted. Sanitize the HTML; show only the mod's own images |
 | Search | In SQLite, with full-text search (FTS5, if `node:sqlite` includes it: unverified) and facet counts |
 | Look | EDGEweb's `site.css` as the base: cut-corner card panels, yellow for active and primary, cyan for links, uppercase mono labels, dark only. The filter chips follow EDGEdeck's library view |
+
+## Talking about a mod
+
+**Decided (the owner, 2026-10-17):**
+
+- Mods have comments on EDGEmods, and comments have likes.
+- A mod page also has **Discussions** and **Issues**: simple renderings of the GitHub Discussions and Issues of the mod's repository, which EDGEmods reads and writes through the GitHub API.
+- The modder grants that access when they publish.
+- Reading GitHub fresh on each view is preferred, so EDGEmods does not keep a second copy, unless that makes pages slow; then webhooks and a local copy.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| The access | A second GitHub App, **EDGEmods** (public, installable on any account), which the modder installs on the mod's repository while publishing. Repository permissions: Issues read and write, Discussions read and write, Contents read, Metadata read. The registry App (`edgemods-registry`) stays private to the EDGEmods repository | An App installed on a repository is the GitHub way to grant one service access to one repository. The modder sees exactly what it asks for and can remove it. Two Apps keep the registry's write access away from thousands of mod repositories |
+| Installing it | The publishing form opens GitHub's install page for the App, with the new repository selected; for the modder's later mods it only adds the repository (whether the API can do that from the extension without the page is unverified) | The first install needs GitHub's own page |
+| A merge check | A new step: the EDGEmods App is installed on the repository. Discussions are turned on (they are off on new repositories); the publishing form turns them on | Without the App the tabs cannot work |
+| Reading | Live from GitHub, with a short cache in memory, invalidated by webhooks (below). Issues through REST, Discussions through GraphQL (GitHub has no REST API for them). Conditional requests with ETags, which GitHub does not count against the rate limit when nothing changed | Nothing kept on EDGEmods but a disposable cache. Each modder's installation has its own rate limit (5,000 requests an hour or more), so one popular mod does not starve the rest |
+| Speed | The mod page renders at once; the Discussions and Issues tabs load their content when opened. A cache hit is instant; a miss costs one GitHub call, typically well under a second (to measure in R3) | The slow part never blocks the page |
+| Webhooks | The App's webhooks (`issues`, `issue_comment`, `discussion`, `discussion_comment`) tell the server which mod changed, and it drops that mod's cache. The same App also sends `release` and `repository` (renamed, archived, deleted, made private), so the indexer hears of new releases at once instead of polling | Fresh after any change without storing the data. Webhooks exist for GitHub Apps; GitHub does not resend a failed delivery by itself, so the cache also expires after a few minutes |
+| If that is too slow | Keep a local copy, filled by the same webhooks and a backfill on install. The webhooks are needed either way, so this is a later step, not a different design | |
+| Writing | People signed in with GitHub post as themselves, through a one-time "Authorize EDGEmods" on GitHub (the App's user sign-in). Others read, and talk in EDGEmods' own comments | A post made by the App would show as the App, not the person, and EDGEmods would answer for every post on someone else's repository |
+| Soft gate | Discussions and Issues are for signed-in people: they link to the repository and name its owner | The origin is behind sign-in |
+| Sanitizing | GitHub's text is untrusted like a README: rendered and sanitized on the server; avatars and images through EDGEmods' cache | |
+| Moderation | The modder moderates their repository on GitHub. EDGEmods' own comments are moderated by its admins and through reports | |
 
 ## Accounts (Decided)
 

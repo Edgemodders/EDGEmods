@@ -30,6 +30,7 @@ The point of building the prototype first: each item below is something the R3 s
 | Likes | One per account per mod, toggled; a list of liked mods |
 | Settings | Show adult mods (off by default, never for visitors); download my data; delete my account |
 | My mods | The modder's mods by their GitHub id (from the Auth0 GitHub sign-in), **including publish attempts whose checks failed**. So the registry workflow reports each result to the server (with the registry secret), not only on the pull request |
+| Comments, Discussions, Issues | Comments and comment likes in the database. Discussions and Issues read live from GitHub through the EDGEmods App, cached briefly, the cache dropped by the App's webhooks; posting as the person for GitHub accounts |
 | Reports | Signed-in people report a mod with a reason; admins see a queue and close reports |
 | Admin | Overview counts; spot review of recently merged mods, marked reviewed; mods: edit EDGEmods' tags, type, featured, hide, remove (which opens a pull request deleting the registry file, so the server needs the GitHub App too); users: sign-in method, joined, last seen, block; the private blocklist (GitHub accounts, repositories, site accounts, with a private reason); the audit log |
 
@@ -40,5 +41,5 @@ The point of building the prototype first: each item below is something the R3 s
 | Adult mods | Hidden from visitors; signed-in people opt in from settings |
 | "Runs code" | A red tag on cards and a plain warning on the mod page for mods with game plugins (`.dll`, `.asi`) or programs |
 | Featured mods | An admin action exists; the home page does not show a featured rail yet |
-| Comments, bug reports | Not in the prototype. The mod's GitHub issues, or EDGEmods' own? |
+| Comments, Discussions, Issues | Decided 2026-10-17: EDGEmods' own comments with likes, plus Discussions and Issues from the mod's GitHub repository. Not in the prototype yet; the design is in [Talking about a mod](design.html#talking-about-a-mod) |
 | The home page | Counts, types and three rails. Anything else? |
