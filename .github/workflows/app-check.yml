@@ -42,5 +42,4 @@ jobs:
             echo "::error::The App is not installed on $GITHUB_REPOSITORY."
             exit 1
           fi
-          gh api "repos/$GITHUB_REPOSITORY/installation" --jq '"Permissions: " + (.permissions | to_entries | map(.key + " " + .value) | join(", "))'
           echo "The App is ready to merge registry pull requests."
