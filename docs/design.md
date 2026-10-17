@@ -169,14 +169,18 @@ A modder who signs in with email or Google can browse but does not see their pub
 | My mods | An explorer of the modder's published mods, from the website's API |
 | Publish and manage | The publishing form: a new mod, an update, replacing files, changing the version, and other admin tasks |
 
-The extension lives in this repository, beside the server, and its `.vsix` is published in this repository's releases (the owner, 2026-10-17).
+The extension lives in this repository, beside the server, and its `.vsix` is published in this repository's releases. The extension and the server have separate versions and tags, so either can ship without the other (the owner, 2026-10-17):
+
+| Tag | Release |
+|---|---|
+| `extension-vX.Y.Z` | The `.vsix` attached; then the Marketplace and Open VSX |
+| `server-vX.Y.Z` | The release the install script deploys (`setup-edgemods.sh --tag …`) |
 
 **Proposed:**
 
 | Topic | Proposal |
 |---|---|
 | Layout | `extensions/edgemods`, in the same npm workspace as `packages/*`, as REDcode does. Its non-UI code is in `extensions/edgemods/src/core`, with no VS Code imports, so the MCP server can bundle it. Activity bar icon: [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEmods/blob/main/tools/brand/activity.svg) |
-| Versions and releases | The extension and the server have separate versions and tags. `extension-vX.Y.Z`: a release with the `.vsix`, then the Marketplace and Open VSX. `server-vX.Y.Z`: a release the install script deploys (`setup-edgemods.sh --tag …`). Either can ship without the other |
 | Compatibility | The API is versioned (`/api/v1/…`). The server keeps older API versions while extensions still use them; the extension says plainly when it needs a newer server |
 
 ## How it fits with the other EDGE tools
