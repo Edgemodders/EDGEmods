@@ -1,0 +1,622 @@
+// EDGEmods website prototype: renders every page from assets/data.js. No server: the "view as" strip at the top
+// switches between a visitor, a player, a modder and an admin, and likes are kept in this browser only.
+(function () {
+  'use strict';
+  const D = window.EDGEMODS_DATA;
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const params = new URLSearchParams(location.search);
+
+  // ---- storage (prototype conveniences only; a real site keeps these on the server) ----
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem(`edgemods-proto:${key}`); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+    set(key, value) { try { localStorage.setItem(`edgemods-proto:${key}`, JSON.stringify(value)); } catch { /* private window */ } },
+  };
+
+  // ---- who is looking ----
+  const PERSONAS = {
+    visitor: null,
+    player: { key: 'player', name: 'Vee Morales', via: 'Email', github: null, admin: false },
+    modder: { key: 'modder', name: 'Nyx Calloway', via: 'GitHub', github: 'octo-modder', admin: false },
+    admin: { key: 'admin', name: 'EDGEmods admin', via: 'Email', github: null, admin: true },
+  };
+  const ROLE_LABELS = { visitor: 'Visitor', player: 'Player', modder: 'Modder', admin: 'Admin' };
+  let role = params.get('as') in PERSONAS ? params.get('as') : store.get('role', 'visitor');
+  if (!(role in PERSONAS)) role = 'visitor';
+  const me = () => PERSONAS[role];
+  const setRole = (r) => { role = r; store.set('role', r); render(); };
+
+  const likes = new Set(store.get('likes', ['clean-hud', 'neon-rain-weather']));
+  const settings = store.get('settings', { adult: false });
+
+  // ---- formatting ----
+  const num = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+  const bytes = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(b < 10 * 1024 ** 2 ? 1 : 0)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const ago = (iso) => {
+    const d = (D.NOW - Date.parse(iso)) / 86400000;
+    if (d < 1 / 24) return 'just now';
+    if (d < 1) return `${Math.round(d * 24)} h ago`;
+    if (d < 2) return 'yesterday';
+    if (d < 30) return `${Math.round(d)} days ago`;
+    if (d < 365) return `${Math.round(d / 30)} months ago`;
+    return `${Math.round(d / 365)} years ago`;
+  };
+  const date = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const daysOld = (iso) => (D.NOW - Date.parse(iso)) / 86400000;
+
+  const TYPES = {
+    gameplay: ['Gameplay', '#fcee0a'], visual: ['Visual', '#19f3ff'], characters: ['Characters', '#ff9ad5'], clothing: ['Clothing', '#ffb86b'],
+    weapons: ['Weapons', '#ff2a52'], vehicles: ['Vehicles', '#fcee0a'], audio: ['Audio', '#5dffa1'], ui: ['UI', '#19f3ff'],
+    world: ['World', '#5dffa1'], quests: ['Quests', '#ff9ad5'], utility: ['Utility', '#c3c9d8'], 'modding-resource': ['Modding resource', '#ffb86b'], other: ['Other', '#8a93a8'],
+  };
+  const KIND_LABELS = {
+    plugin: 'Game plugins (.dll)', program: 'Programs (.exe and similar)', redscript: 'redscript scripts', cet: 'Cyber Engine Tweaks scripts',
+    archive: 'Game archives', tweak: 'Tweaks', audio: 'Sound files', 'nested-archive': 'Archives inside the download', other: 'Other files',
+  };
+  const ICON = {
+    down: '<svg viewBox="0 0 24 24"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>',
+    heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+    box: '<svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z M4 8l8 4 8-4 M12 12v8"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
+    code: '<svg viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg>',
+    vscode: '<svg viewBox="0 0 24 24"><path d="M17 3l4 2v14l-4 2-10-9 10-9z M17 3v18 M3 9l4 3-4 3"/></svg>',
+    git: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 8v8M8 6h4a6 6 0 0 1 6 3"/></svg>',
+    lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  };
+
+  // ---- card art: a deterministic Night City skyline per mod, in its type's colour ----
+  function rng(seed) {
+    let h = 1779033703 ^ seed.length;
+    for (let i = 0; i < seed.length; i++) { h = Math.imul(h ^ seed.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  }
+  function art(mod, variant = 0, ratio = 2) {
+    const W = 400, H = Math.round(W / ratio);
+    const r = rng(`${mod.id}:${variant}`);
+    const c = TYPES[mod.type]?.[1] ?? '#19f3ff';
+    const gid = `g${Math.floor(r() * 1e9)}`;
+    const horizon = H * (0.56 + r() * 0.12);
+    let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">`;
+    s += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0d13"/><stop offset="1" stop-color="${c}" stop-opacity=".22"/></linearGradient></defs>`;
+    s += `<rect width="${W}" height="${H}" fill="url(#${gid})"/>`;
+    const sunX = W * (0.25 + r() * 0.5), sunR = H * (0.16 + r() * 0.12);
+    s += `<circle cx="${sunX}" cy="${horizon - sunR * 0.35}" r="${sunR}" fill="${c}" fill-opacity=".18"/>`;
+    for (let i = 0; i < 4; i++) s += `<rect x="${sunX - sunR}" y="${horizon - sunR * 0.35 + i * sunR * 0.22}" width="${sunR * 2}" height="${sunR * 0.07}" fill="#0b0d13" fill-opacity=".9"/>`;
+    let x = -10;
+    while (x < W) {
+      const bw = 14 + r() * 34, bh = H * (0.12 + r() * 0.5) * (r() < 0.12 ? 1.5 : 1);
+      s += `<rect x="${x}" y="${horizon - bh}" width="${bw}" height="${bh + H}" fill="#0b0d13" stroke="${c}" stroke-opacity=".25" stroke-width=".6"/>`;
+      for (let wy = horizon - bh + 5; wy < horizon - 4; wy += 7) {
+        for (let wx = x + 4; wx < x + bw - 4; wx += 6) if (r() < 0.16) s += `<rect x="${wx}" y="${wy}" width="2.2" height="2.2" fill="${c}" fill-opacity="${0.35 + r() * 0.6}"/>`;
+      }
+      x += bw + 2 + r() * 6;
+    }
+    for (let i = 1; i <= 6; i++) { const y = horizon + (H - horizon) * (i / 6) ** 1.6; s += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${c}" stroke-opacity=".22"/>`; }
+    for (let i = -8; i <= 8; i++) s += `<line x1="${W / 2 + i * 22}" y1="${horizon}" x2="${W / 2 + i * 120}" y2="${H}" stroke="${c}" stroke-opacity=".16"/>`;
+    s += `<rect y="${horizon}" width="${W}" height="1.5" fill="${c}" fill-opacity=".7"/>`;
+    const b = 16, m = 10;
+    s += `<path d="M${m} ${m + b}V${m}H${m + b} M${W - m - b} ${H - m}H${W - m}V${H - m - b}" fill="none" stroke="${c}" stroke-width="2"/>`;
+    return s + '</svg>';
+  }
+
+  // ---- the page frame ----
+  function shell(page) {
+    const who = me();
+    const nav = [['browse.html', 'Browse', 'browse'], ['browse.html?sort=new', 'New', 'new'], ['browse.html?sort=updated', 'Updated', 'updated'], ['publish.html', 'Publish', 'publish']];
+    const current = page === 'browse' ? (params.get('sort') === 'new' ? 'new' : params.get('sort') === 'updated' ? 'updated' : 'browse') : page;
+    const account = who
+      ? `<button class="who" aria-haspopup="true" aria-expanded="false" id="whoBtn"><span class="avatar">${esc(who.name[0])}</span>${esc(who.name.split(' ')[0])}</button>
+         <div class="menu" id="whoMenu" role="menu">
+           <div class="head"><b>${esc(who.name)}</b>Signed in with ${esc(who.via)}${who.github ? ` · ${esc(who.github)}` : ''}</div>
+           <a href="me.html#likes" role="menuitem">Liked mods</a>
+           <a href="me.html#mods" role="menuitem">${who.github ? 'My mods' : 'Publishing'}</a>
+           <a href="me.html#settings" role="menuitem">Settings</a>
+           ${who.admin ? '<a href="admin.html" role="menuitem">Admin</a>' : ''}
+           <button data-signout role="menuitem">Sign out</button>
+         </div>`
+      : '<button class="btn sm go" data-signin>Sign in</button>';
+    $('#shell-top').innerHTML = `
+      <div class="proto"><div class="wrap"><b>Prototype</b><span>View as</span>
+        <span class="roles">${Object.keys(PERSONAS).map((k) => `<button data-role="${k}" aria-pressed="${k === role}">${ROLE_LABELS[k]}</button>`).join('')}</span>
+        <span class="note">Invented data. Nothing here talks to a server.</span></div></div>
+      <header class="bar"><div class="wrap">
+        <a class="logo" href="index.html"><span class="dot"></span>EDGE<span>mods</span></a>
+        <nav aria-label="Main">${nav.map(([href, label, key]) => `<a href="${href}"${key === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+        <form action="browse.html" role="search"><label class="sr" for="topq">Search mods</label>
+          <input class="search" id="topq" name="q" type="search" placeholder="Search mods" value="${page === 'browse' ? esc(params.get('q') ?? '') : ''}"></form>
+        <div class="account">${account}</div>
+      </div></header>`;
+    $('#shell-bottom').innerHTML = `
+      <footer class="wrap"><span>EDGEMODS · THE EDGE MOD REGISTRY FOR CYBERPUNK 2077</span>
+        <nav><a href="publish.html">Publish</a><a href="https://edgemodders.github.io/EDGEmods/">Docs</a><a href="#" data-toast="The privacy page: no tracking; what is stored for an account.">Privacy</a><a href="#" data-toast="The terms page.">Terms</a></nav>
+        <span>Mods live in their authors' repositories. Not affiliated with CD Projekt RED.</span></footer>
+      <div class="toast" id="toast" role="status"></div>
+      <div id="modal"></div>`;
+  }
+
+  function toast(text) {
+    const t = $('#toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => t.classList.remove('show'), 3800);
+  }
+
+  function signInModal() {
+    $('#modal').innerHTML = `
+      <div style="position:fixed;inset:0;background:rgba(8,9,13,.8);z-index:50;display:grid;place-items:center;padding:16px" data-close>
+        <div class="panel" style="width:min(420px,100%);padding:26px" role="dialog" aria-label="Sign in">
+          <p class="label">Auth0 · Universal Login</p>
+          <h2 style="margin-bottom:6px">Sign in to <span style="color:var(--yellow)">EDGEmods</span></h2>
+          <p class="dim" style="font-size:16px">Sign in to download, like and install mods. Publishing needs GitHub.</p>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+            <button class="btn go" data-as="modder">${ICON.git} Continue with GitHub</button>
+            <button class="btn" data-as="player">Continue with Google</button>
+            <button class="btn" data-as="player">Continue with email</button>
+          </div>
+          <p class="dim mono" style="font-size:11px;margin:16px 0 0">In the prototype, GitHub signs you in as the modder, the others as a player.</p>
+        </div></div>`;
+  }
+
+  function likeButton(m) {
+    const on = Boolean(me()) && likes.has(m.id);
+    return `<button class="like" data-like="${esc(m.id)}" aria-pressed="${on}" title="${me() ? (on ? 'Unlike' : 'Like') : 'Sign in to like'}">${ICON.heart}${num(m.likes + (on ? 1 : 0))}</button>`;
+  }
+
+  function card(m) {
+    const fresh = daysOld(m.publishedAt) < 7;
+    const updated = !fresh && daysOld(m.updatedAt) < 7;
+    return `<article class="card">
+      <div class="img">${art(m)}<div class="flags"><span class="tag solid y">${esc(TYPES[m.type][0])}</span>
+        <span class="right">${fresh ? '<span class="tag solid g">New</span>' : ''}${updated ? '<span class="tag solid c">Updated</span>' : ''}${m.runsCode.length ? '<span class="tag solid r" title="Contains a game plugin that runs code">Runs code</span>' : ''}${m.adult ? '<span class="tag solid r">18+</span>' : ''}</span></div></div>
+      <div class="body">
+        <a class="name" href="mod.html?id=${esc(m.id)}">${esc(m.name)}</a>
+        <span class="by">by ${esc(m.author.name)}</span>
+        <p class="sum">${esc(m.summary)}</p>
+        <div class="tags">${m.tags.slice(0, 3).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+      </div>
+      <div class="foot">
+        <span class="stat" title="Downloads">${ICON.down}${num(m.downloads)}</span>
+        <span class="stat" title="Size">${ICON.box}${bytes(m.size)}</span>
+        <span class="stat" title="Version">v${esc(m.version)}</span>
+        <span class="stat" title="Updated ${esc(date(m.updatedAt))}">${ICON.clock}${ago(m.updatedAt)}</span>
+        ${likeButton(m)}
+      </div></article>`;
+  }
+
+  /** What anyone may see: adult mods only for signed-in people who turned them on. */
+  const visibleMods = () => D.mods.filter((m) => m.status === 'visible' && (!m.adult || (me() && settings.adult)));
+  const byId = (id) => D.mods.find((m) => m.id === id);
+  const SORTS = {
+    new: ['Newest', (a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)],
+    updated: ['Recently updated', (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)],
+    downloads: ['Most downloaded', (a, b) => b.downloads - a.downloads],
+    likes: ['Most liked', (a, b) => b.likes - a.likes],
+    name: ['Name A–Z', (a, b) => a.name.localeCompare(b.name)],
+  };
+
+  // ---- pages ----
+  const pages = {
+    home() {
+      const mods = visibleMods();
+      const rail = (title, id, sort, n = 4) => `<section><div class="sechead"><h2><span class="id">${id}</span>${title}</h2><a href="browse.html?sort=${sort}">See all →</a></div><div class="rule"></div>
+        <div class="cards">${[...mods].sort(SORTS[sort][1]).slice(0, n).map(card).join('')}</div></section>`;
+      const counts = Object.keys(TYPES).map((t) => [t, mods.filter((m) => m.type === t).length]).filter(([, n]) => n);
+      const modders = new Set(mods.map((m) => m.author.github)).size;
+      const downloads = mods.reduce((n, m) => n + m.downloads, 0);
+      return `<header class="hero wrap">
+          <div class="eyebrow">The EDGE mod registry for Cyberpunk 2077</div>
+          <h1>Mods, straight from <span>git</span></h1>
+          <p class="lede">Find, install and share mods. Every mod lives in its author's own repository: EDGEmods checks it, lists it, and installs it through REDdeck in one click.</p>
+          <div class="cta"><a class="btn go" href="browse.html">Browse mods</a><a class="btn" href="publish.html">Publish a mod</a></div>
+          <div class="stats"><span><b>${mods.length}</b>mods</span><span><b>${modders}</b>modders</span><span><b>${num(downloads)}</b>downloads</span></div>
+        </header>
+        <main class="wrap">
+          <section style="margin-top:8px"><div class="sechead"><h2><span class="id">00</span>Types</h2></div><div class="rule"></div>
+            <div class="types">${counts.map(([t, n]) => `<a class="typetile" href="browse.html?type=${t}">${esc(TYPES[t][0])}<small>${n}</small></a>`).join('')}</div></section>
+          ${rail('New mods', '01', 'new')}
+          ${rail('Recently updated', '02', 'updated')}
+          ${rail('Most liked', '03', 'likes')}
+        </main>`;
+    },
+
+    browse() {
+      return `<main class="wrap"><div class="browse">
+        <aside class="facets" id="facets" aria-label="Filters"></aside>
+        <div>
+          <div class="toolbar">
+            <label class="sr" for="q">Search</label><input class="search" id="q" type="search" placeholder="Search names, descriptions, tags, authors" value="${esc(params.get('q') ?? '')}">
+            <button class="btn sm filters-toggle" id="filtersToggle" aria-controls="facets" aria-expanded="false">Filters</button>
+            <span class="count" id="count"></span>
+            <label class="sr" for="sort">Sort</label>
+            <select class="sort" id="sort">${Object.entries(SORTS).map(([k, [label]]) => `<option value="${k}">${label}</option>`).join('')}</select>
+          </div>
+          <div class="chips" id="chips"></div>
+          <div class="cards" id="results"></div>
+          <div class="loadmore" id="more"></div>
+        </div></div></main>`;
+    },
+
+    mod() {
+      const m = byId(params.get('id') ?? '') ?? D.mods[0];
+      const who = me();
+      if (m.adult && !(who && settings.adult)) {
+        return `<main class="wrap"><div class="pagehead"><div class="eyebrow">Adult content</div><h1>This mod is for <span>adults</span></h1>
+          <p class="lede">${who ? 'Turn on adult mods in your settings to see it.' : 'Sign in, then turn on adult mods in your settings, to see it.'}</p>
+          <div class="cta">${who ? '<a class="btn go" href="me.html#settings">Settings</a>' : '<button class="btn go" data-signin>Sign in</button>'}<a class="btn" href="browse.html">Back to mods</a></div></div></main>`;
+      }
+      const own = who?.github === m.author.github;
+      const latest = m.releases[0];
+      return `<main class="wrap">
+        <div class="crumbs"><a href="browse.html">Mods</a> / <a href="browse.html?type=${m.type}">${esc(TYPES[m.type][0])}</a> / ${esc(m.name)}</div>
+        ${who?.admin ? `<div class="adminstrip">Admin <span class="spacer"></span>
+          <button class="btn sm" data-toast="The mod is hidden from the site; its registry file stays.">Hide</button>
+          <button class="btn sm" data-toast="Tags EDGEmods adds sit beside the author's and cannot be removed by them.">Edit EDGEmods tags</button>
+          <button class="btn sm" data-toast="The mod is featured on the home page.">Feature</button>
+          <button class="btn sm danger" data-toast="The owner's GitHub account is blocked: no new mods, and this one is hidden.">Block owner</button></div>` : ''}
+        ${own ? `<div class="panel note" style="margin-top:18px"><p class="label">Your mod</p><p style="margin:0">This is your mod. Update it, change files or the version from VS Code: <b>EDGEmods › My mods</b>. ${num(m.downloads)} downloads, ${num(m.likes)} likes.</p></div>` : ''}
+        <div class="modhead">
+          <div>
+            <div class="modmeta" style="margin-top:0"><a class="tag y" href="browse.html?type=${m.type}">${esc(TYPES[m.type][0])}</a>${m.runsCode.length ? '<span class="tag r">Runs code</span>' : ''}${m.adult ? '<span class="tag r">18+</span>' : ''}</div>
+            <h1>${esc(m.name)}</h1>
+            <p class="lede">${esc(m.summary)}</p>
+            <div class="byline" style="margin-top:12px">by ${esc(m.author.name)}${who ? ` · <a href="${esc(m.repo)}">${ICON.git.replace('<svg', '<svg style="width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2"')} ${esc(m.author.github)}/${esc(m.id)}</a>` : ''}</div>
+            <div class="modmeta">${m.tags.map((t) => `<a class="tag" href="browse.html?tag=${esc(t)}">${esc(t)}</a>`).join('')}</div>
+            <div class="gallery"><div class="main" id="galleryMain">${art(m, 1, 16 / 9)}</div><div class="caption" id="galleryCaption">Screenshot 1 of ${m.gallery}</div>
+              <div class="thumbs">${Array.from({ length: m.gallery }, (_, i) => `<button data-shot="${i + 1}" aria-current="${i === 0}" aria-label="Screenshot ${i + 1}">${art(m, i + 1, 16 / 9)}</button>`).join('')}</div></div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <div class="actions">${who
+                ? `<button class="btn go" data-install>${ICON.vscode} Install in VS Code</button>
+                   <button class="btn" data-tab-open="files">${ICON.down} Download files</button>`
+                : `<button class="btn go" data-signin>${ICON.lock} Sign in to download</button>
+                   <p class="gate">Downloading, installing and seeing where a mod comes from need a free account.</p>`}
+                ${likeButton(m).replace('class="like"', 'class="like" style="justify-content:center;padding:9px"')}
+              </div>
+            </div>
+            <div class="panel"><dl class="kv">
+              <dt>Version</dt><dd>${esc(m.version)}</dd>
+              <dt>Updated</dt><dd>${esc(date(m.updatedAt))}</dd>
+              <dt>Published</dt><dd>${esc(date(m.publishedAt))}</dd>
+              <dt>Downloads</dt><dd>${m.downloads.toLocaleString('en')}</dd>
+              <dt>Size</dt><dd>${bytes(m.size)}</dd>
+              <dt>Game</dt><dd>Tested with ${esc(m.game)}</dd>
+              <dt>License</dt><dd>${esc(m.license)}</dd>
+              <dt>Source</dt><dd>${who ? `<a href="${esc(m.repo)}">GitHub</a>` : '<span class="dim">Sign in to see</span>'}</dd>
+            </dl></div>
+            <div class="panel ${m.runsCode.length ? 'warn' : ''}">
+              <p class="label">What's in the download</p>
+              ${m.runsCode.length ? '<p style="font-size:16px">It has a <b>game plugin</b>: code that runs inside the game with your permissions. That is normal for frameworks; install mods like this from authors you trust.</p>' : ''}
+              <ul class="contents">${Object.entries(m.kinds).map(([k, n]) => `<li>${n} × ${esc(KIND_LABELS[k] ?? k)}</li>`).join('')}</ul>
+              <p class="dim mono" style="font-size:11px;margin:10px 0 0">Checked and scanned (ClamAV) ${esc(ago(m.scannedAt))}</p>
+              <details class="raw"><summary>Raw values</summary><pre>${esc(`sha256 ${m.sha256}\n${m.runsCode.map((p) => `runs code: ${p}`).join('\n')}`)}</pre></details>
+            </div>
+            ${who ? '<button class="btn sm" data-toast="A report goes to the EDGEmods admins with your account.">Report this mod</button>' : ''}
+          </aside>
+        </div>
+        <div class="tabs" role="tablist">${[['about', 'About'], ['files', `Files (${m.files.length})`], ['versions', `Versions (${m.releases.length})`], ['needs', `Requirements (${m.requirements.length})`]]
+          .map(([k, l], i) => `<button role="tab" data-tab="${k}" aria-selected="${i === 0}">${l}</button>`).join('')}</div>
+        <div class="tabpanel" data-panel="about">${readme(m)}</div>
+        <div class="tabpanel" data-panel="files" hidden>${filesPanel(m, latest)}</div>
+        <div class="tabpanel" data-panel="versions" hidden><div class="versions">${m.releases.map((r, i) => `
+          <div class="panel version"><div class="v">${esc(r.version)}<small>${esc(date(r.date))}${i === 0 ? ' · latest' : ''}</small></div>
+            <ul>${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
+            <div>${who ? `<button class="btn sm" data-toast="Installs ${esc(r.version)} through REDdeck, which keeps versions side by side.">${i === 0 ? 'Install' : 'Install this version'}</button>` : '<span class="dim mono" style="font-size:11px">Sign in to install</span>'}</div></div>`).join('')}</div></div>
+        <div class="tabpanel" data-panel="needs" hidden><p class="dim">Install these too. REDdeck installs EDGEmods requirements with the mod; links outside EDGEmods are not checked by EDGEmods.</p>
+          <div class="reqs">${m.requirements.map((r) => {
+            if (r.mod) {
+              const dep = byId(r.mod);
+              return dep ? `<a class="panel req" href="mod.html?id=${esc(dep.id)}" style="text-decoration:none;color:inherit"><span class="thumb">${art(dep)}</span><span><b>${esc(dep.name)}</b><small>On EDGEmods${r.minVersion ? ` · ${esc(r.minVersion)} or later` : ''}</small></span></a>` : '';
+            }
+            return `<a class="panel req" href="${esc(r.url)}" style="text-decoration:none;color:inherit"><span class="ext">External</span><span><b>${esc(r.name)}</b><small>${esc(new URL(r.url).hostname)} · not checked by EDGEmods</small></span></a>`;
+          }).join('')}</div></div>
+      </main>`;
+    },
+
+    me() {
+      const who = me();
+      if (!who) return signInPage('Your account');
+      const mine = D.mods.filter((m) => m.author.github === who.github);
+      return `<main class="wrap"><div class="pagehead"><div class="eyebrow">Signed in with ${esc(who.via)}${who.github ? ` · ${esc(who.github)}` : ''}</div><h1>${esc(who.name)}</h1></div>
+        <div class="tabs" role="tablist">${[['likes', 'Liked mods'], ['mods', who.github ? `My mods (${mine.length})` : 'Publishing'], ['settings', 'Settings']]
+          .map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="false">${l}</button>`).join('')}</div>
+        <div class="tabpanel" data-panel="likes" hidden>${(() => {
+          const liked = D.mods.filter((m) => likes.has(m.id));
+          return liked.length ? `<div class="cards">${liked.map(card).join('')}</div>` : '<p class="empty">Mods you like show up here.</p>';
+        })()}</div>
+        <div class="tabpanel" data-panel="mods" hidden>${who.github ? `
+          <div class="row" style="margin-bottom:14px"><p class="dim" style="margin:0">Publish and update mods from VS Code: EDGEmods › My mods, or the Publish button in REDcode.</p>
+            <a class="btn sm go" href="publish.html" style="margin-left:auto">How to publish</a></div>
+          <div class="tw"><table><thead><tr><th>Mod</th><th>Status</th><th>Version</th><th>Downloads</th><th>Likes</th><th>Updated</th><th></th></tr></thead><tbody>
+          ${mine.map((m) => `<tr><td><b>${esc(m.name)}</b><small>${esc(m.author.github)}/${esc(m.id)}</small></td><td><span class="st on">Live</span></td>
+            <td class="n">${esc(m.version)}</td><td class="n">${m.downloads.toLocaleString('en')}</td><td class="n">${m.likes.toLocaleString('en')}</td><td class="n">${esc(ago(m.updatedAt))}</td>
+            <td class="acts"><a class="btn sm" href="mod.html?id=${esc(m.id)}">Page</a><button class="btn sm" data-toast="Opens EDGEmods › My mods in VS Code on this mod.">Open in VS Code</button></td></tr>`).join('')}
+          <tr><td><b>Chrome Pack Prototype</b><small>octo-modder/chrome-pack</small></td><td><span class="st off">Checks failed</span></td><td class="n">0.1.0</td><td class="n">—</td><td class="n">—</td><td class="n">2 h ago</td>
+            <td class="acts"><button class="btn sm" data-toast="Opens the pull request's report: the card image must be 2:1.">See why</button></td></tr>
+          </tbody></table></div>`
+        : `<div class="panel note"><p class="label">Publishing</p><p>Publishing a mod needs a GitHub sign-in: your mod lives in your own GitHub repository, and EDGEmods checks that it is yours.</p>
+            <p style="margin:0">You are signed in with ${esc(who.via)}. Sign in with GitHub to publish; your mods belong to that account.</p></div>`}</div>
+        <div class="tabpanel" data-panel="settings" hidden><div class="panel" style="max-width:640px">
+          <p class="label">Content</p>
+          <label class="toggle"><input type="checkbox" id="adultToggle" ${settings.adult ? 'checked' : ''}> Show adult mods (18+)</label>
+          <p class="dim" style="font-size:15px;margin:6px 0 18px">Off by default. Adult mods never show to visitors who are not signed in.</p>
+          <p class="label">Account</p><dl class="kv" style="max-width:420px"><dt>Name</dt><dd>${esc(who.name)}</dd><dt>Sign-in</dt><dd>${esc(who.via)}</dd></dl>
+          <div class="row" style="margin-top:18px"><button class="btn sm" data-toast="Downloads a copy of everything EDGEmods keeps for your account.">Download my data</button>
+            <button class="btn sm danger" data-toast="Deletes your account, likes and settings. Your mods stay in your repositories.">Delete account</button></div>
+        </div></div></main>`;
+    },
+
+    admin() {
+      const who = me();
+      if (!who?.admin) return who ? '<main class="wrap"><div class="pagehead"><div class="eyebrow">Admin</div><h1>Admins <span>only</span></h1><p class="lede">Admins are the email accounts listed in the server\'s settings.</p></div></main>' : signInPage('Admin');
+      const recent = [...D.mods].sort(SORTS.new[1]).slice(0, 5);
+      return `<main class="wrap"><div class="pagehead"><div class="eyebrow">Signed in as ${esc(who.name)}</div><h1>Ad<span>min</span></h1></div>
+        <div class="tabs" role="tablist">${[['overview', 'Overview'], ['mods', 'Mods'], ['users', 'Users'], ['reports', `Reports (${D.reports.length})`], ['blocklist', 'Blocklist'], ['audit', 'Audit log']]
+          .map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="false">${l}</button>`).join('')}</div>
+        <div class="tabpanel" data-panel="overview" hidden>
+          <div class="tiles">
+            <div class="panel tile"><p class="label">Mods live</p><div class="big">${D.mods.length}</div><small>${D.mods.filter((m) => daysOld(m.publishedAt) < 7).length} new this week</small></div>
+            <div class="panel tile"><p class="label">Accounts</p><div class="big">${D.users.length}</div><small>${D.users.filter((u) => u.role === 'modder').length} modders</small></div>
+            <div class="panel tile ${D.reports.length ? 'warn' : ''}"><p class="label">Open reports</p><div class="big">${D.reports.length}</div><small>from signed-in players</small></div>
+            <div class="panel tile"><p class="label">Blocked</p><div class="big">${D.blocklist.length}</div><small>accounts and repositories</small></div>
+          </div>
+          <section style="margin-top:28px"><div class="sechead"><h2><span class="id">01</span>Spot review</h2></div><div class="rule"></div>
+            <p class="dim">Mods merge by themselves when every check passes. Look over the newest ones here.</p>
+            <div class="tw"><table><thead><tr><th>Mod</th><th>Owner</th><th>Merged</th><th>Contents</th><th></th></tr></thead><tbody>
+            ${recent.map((m) => `<tr><td><b>${esc(m.name)}</b><small>${esc(m.id)} · ${esc(m.version)}</small></td><td>${esc(m.author.github)}</td><td class="n">${esc(ago(m.publishedAt))}</td>
+              <td>${m.runsCode.length ? '<span class="st off">Runs code</span>' : '<span class="st on">No code</span>'} ${m.adult ? '<span class="st wip">Adult</span>' : ''}</td>
+              <td class="acts"><a class="btn sm" href="mod.html?id=${esc(m.id)}">Look</a><button class="btn sm" data-toast="Marked as reviewed.">Reviewed</button></td></tr>`).join('')}
+            </tbody></table></div></section>
+        </div>
+        <div class="tabpanel" data-panel="mods" hidden><div class="tw"><table><thead><tr><th>Mod</th><th>Owner</th><th>Status</th><th>Downloads</th><th>Reports</th><th></th></tr></thead><tbody>
+          ${D.mods.map((m) => `<tr><td><b>${esc(m.name)}</b><small>${esc(TYPES[m.type][0])} · ${esc(m.version)}${m.adult ? ' · adult' : ''}${m.runsCode.length ? ' · runs code' : ''}</small></td><td>${esc(m.author.github)}</td>
+            <td><span class="st on">Visible</span></td><td class="n">${m.downloads.toLocaleString('en')}</td><td class="n">${m.reports || '—'}</td>
+            <td class="acts"><button class="btn sm" data-toast="Edit the tags EDGEmods adds, the type, featured.">Edit</button><button class="btn sm" data-toast="Hidden from the site; the registry file stays.">Hide</button><button class="btn sm danger" data-toast="Removing opens a pull request that deletes the registry file.">Remove</button></td></tr>`).join('')}
+        </tbody></table></div></div>
+        <div class="tabpanel" data-panel="users" hidden><div class="tw"><table><thead><tr><th>User</th><th>Sign-in</th><th>Role</th><th>Joined</th><th>Last seen</th><th>Status</th><th></th></tr></thead><tbody>
+          ${D.users.map((u) => `<tr><td><b>${esc(u.name)}</b><small>${esc(u.email)}</small></td><td>${esc(u.via)}</td><td>${esc(u.role)}</td><td class="n">${esc(ago(u.joined))}</td><td class="n">${esc(ago(u.seen))}</td>
+            <td>${u.status === 'blocked' ? '<span class="st off">Blocked</span>' : '<span class="st on">Active</span>'}</td>
+            <td class="acts">${u.status === 'blocked' ? '<button class="btn sm" data-toast="Unblocked.">Unblock</button>' : '<button class="btn sm danger" data-toast="Blocked: sessions ended, sign-in refused, and, for a modder, publishing stopped.">Block</button>'}</td></tr>`).join('')}
+        </tbody></table></div></div>
+        <div class="tabpanel" data-panel="reports" hidden><div class="tw"><table><thead><tr><th>Mod</th><th>From</th><th>Reason</th><th>When</th><th></th></tr></thead><tbody>
+          ${D.reports.map((r) => `<tr><td><b>${esc(byId(r.mod)?.name)}</b></td><td>${esc(r.by)}</td><td>${esc(r.reason)}</td><td class="n">${esc(ago(r.at))}</td>
+            <td class="acts"><a class="btn sm" href="mod.html?id=${esc(r.mod)}">Look</a><button class="btn sm" data-toast="Closed, with a note to the reporter.">Close</button></td></tr>`).join('')}
+        </tbody></table></div></div>
+        <div class="tabpanel" data-panel="blocklist" hidden>
+          <form class="panel row" style="margin-bottom:14px" data-block>
+            <select class="sort" style="margin-left:0" aria-label="What to block"><option>GitHub account</option><option>Repository</option><option>Site account</option></select>
+            <input class="search" style="max-width:260px" placeholder="login, owner/repo or email" aria-label="Who">
+            <input class="search" style="max-width:320px" placeholder="Reason (kept private)" aria-label="Reason">
+            <button class="btn sm danger">Block</button></form>
+          <p class="dim">The blocklist is private. The registry's merge checks ask the server about it; blocking takes effect at once.</p>
+          <div class="tw"><table><thead><tr><th>What</th><th>Who</th><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead><tbody>
+          ${D.blocklist.map((b) => `<tr><td>${esc(b.what)}</td><td><b>${esc(b.who)}</b></td><td>${esc(b.reason)}</td><td>${esc(b.by)}</td><td class="n">${esc(ago(b.at))}</td><td class="acts"><button class="btn sm" data-toast="Unblocked.">Unblock</button></td></tr>`).join('')}
+          </tbody></table></div></div>
+        <div class="tabpanel" data-panel="audit" hidden><div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>
+          ${D.audit.map((a) => `<tr><td class="n" style="text-align:left">${esc(ago(a.at))}</td><td>${esc(a.who)}</td><td>${esc(a.what)}</td></tr>`).join('')}
+        </tbody></table></div></div></main>`;
+    },
+
+    publish() {
+      return `<header class="hero wrap"><div class="eyebrow">Publish a mod</div><h1>Your repo is the <span>page</span></h1>
+          <p class="lede">Publish from VS Code in one guided step. Your mod lives in your own GitHub repository; EDGEmods checks it and lists it. Nothing is uploaded twice, and you keep everything.</p></header>
+        <main class="wrap"><div class="types" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))">
+          ${[['01', 'Make it in REDcode', 'Build your mod as a REDcode project.'], ['02', 'Press Publish', 'REDcode\'s Publish button opens the EDGEmods form: name, description, version, page, images, files and requirements.'],
+            ['03', 'Sign in with GitHub', 'EDGEmods creates your mod\'s repository, pushes it and makes the release, with your account.'], ['04', 'Checks, then live', 'The registry checks your repository, release and downloads. When everything passes, your mod is on EDGEmods.']]
+            .map(([n, t, d]) => `<div class="panel" style="position:relative;padding-top:52px"><span style="position:absolute;top:14px;left:20px;font-family:var(--display);font-weight:700;font-size:30px;line-height:1;color:var(--yellow)">${n}</span><h3>${t}</h3><p style="margin:0;color:var(--soft)">${d}</p></div>`).join('')}
+        </div>
+        <section><div class="panel note"><p class="label">New versions</p><p style="margin:0">Update from VS Code: EDGEmods › My mods. A new version is a new release in your repository; EDGEmods picks it up by itself.</p></div></section>
+        <div class="cta"><a class="btn go" href="https://edgemodders.github.io/EDGEmods/manifest.html">The mod format</a><a class="btn" href="https://edgemodders.github.io/EDGEmods/registry.html">How the checks work</a></div></main>`;
+    },
+  };
+
+  function signInPage(title) {
+    return `<main class="wrap"><div class="pagehead"><div class="eyebrow">${esc(title)}</div><h1>Sign <span>in</span></h1><p class="lede">Sign in to see your likes, settings and mods.</p>
+      <div class="cta"><button class="btn go" data-signin>Sign in</button></div></div></main>`;
+  }
+
+  function readme(m) {
+    return `<div class="readme">
+      <h2>${esc(m.name)}</h2><p>${esc(m.summary)}</p>
+      <p>This text comes from the mod's <code>README.md</code>, rendered and cleaned by EDGEmods. Authors write it in the EDGEmods publishing form, or in their repository.</p>
+      <h2>Features</h2><ul><li>Works with game ${esc(m.game)}.</li><li>Tags: ${m.tags.map(esc).join(', ')}.</li><li>Settings in the game's mod menu.</li></ul>
+      <h2>Installing</h2><ol><li>Install the requirements.</li><li>Install in VS Code, or download the files and add them to REDdeck.</li>${m.files.some((f) => f.role === 'choose-one') ? '<li>Choose one file from each group in the Files tab.</li>' : ''}</ol>
+      <h2>Credits</h2><p>Thanks to the Cyberpunk 2077 modding community.</p></div>`;
+  }
+
+  function filesPanel(m, latest) {
+    const who = me();
+    const groups = [];
+    const req = m.files.filter((f) => f.role === 'required');
+    if (req.length) groups.push(['Required', 'always installed', req.map((f) => fileRow(f, 'checkbox', true))]);
+    const named = [...new Set(m.files.filter((f) => f.role === 'choose-one').map((f) => f.group))];
+    for (const g of named) groups.push([`Choose one: ${g}`, 'these replace each other, so only one is installed', m.files.filter((f) => f.group === g).map((f, i) => fileRow(f, 'radio', i === 0, g))]);
+    const opt = m.files.filter((f) => f.role === 'optional');
+    if (opt.length) groups.push(['Optional', 'add any of these on top', opt.map((f) => fileRow(f, 'checkbox', false))]);
+    return `<p class="dim">Version ${esc(latest.version)}, released ${esc(date(latest.date))}.</p>
+      <div class="files" id="files">${groups.map(([title, hint, rows]) => `<div class="panel filegroup"><p class="label">${esc(title)} <em>${esc(hint)}</em></p>${rows.join('')}</div>`).join('')}</div>
+      <div class="installbar" style="margin-top:14px">${who
+        ? `<button class="btn go" data-install>${ICON.vscode} Install selected in VS Code</button><span class="sum" id="selSum"></span>`
+        : `<button class="btn go" data-signin>${ICON.lock} Sign in to download</button>`}</div>`;
+  }
+
+  function fileRow(f, kind, checked, group) {
+    const who = me();
+    const input = f.role === 'required'
+      ? `<input type="checkbox" checked disabled aria-label="${esc(f.title)} (required)">`
+      : `<input type="${kind}" ${group ? `name="g-${esc(group)}"` : ''} ${checked ? 'checked' : ''} data-size="${f.size}" aria-label="${esc(f.title)}">`;
+    return `<div class="file">${input}<div><div class="t">${esc(f.title)}</div><div class="n">${esc(f.name)}</div></div>
+      <div class="sz">${bytes(f.size)}${who ? `<br><a href="#" data-toast="Counted as a download, then sent to the file on GitHub.">Download</a>` : ''}</div>${f.note ? `<p class="note">${esc(f.note)}</p>` : ''}</div>`;
+  }
+
+  // ---- browse: search, facets, sort, all in the address bar ----
+  const FACETS = [
+    ['type', 'Type', (m) => [m.type], (v) => TYPES[v]?.[0] ?? v],
+    ['tag', 'Tags', (m) => m.tags, (v) => v],
+    ['needs', 'Needs', (m) => m.requirements.map((r) => r.name ?? byId(r.mod)?.name ?? r.mod), (v) => v],
+  ];
+  function browseState() {
+    const p = new URLSearchParams(location.search);
+    const list = (k) => (p.get(k) ? p.get(k).split(',').filter(Boolean) : []);
+    return { q: p.get('q') ?? '', type: list('type'), tag: list('tag'), needs: list('needs'), nocode: p.get('nocode') === '1', sort: p.get('sort') in SORTS ? p.get('sort') : 'updated', shown: Number(p.get('shown')) || 12 };
+  }
+  function writeState(s) {
+    const p = new URLSearchParams();
+    if (s.q) p.set('q', s.q);
+    for (const k of ['type', 'tag', 'needs']) if (s[k].length) p.set(k, s[k].join(','));
+    if (s.nocode) p.set('nocode', '1');
+    if (s.sort !== 'updated') p.set('sort', s.sort);
+    history.replaceState(null, '', `browse.html${p.toString() ? `?${p}` : ''}`);
+  }
+  function matches(m, s, skip) {
+    const q = s.q.trim().toLowerCase();
+    if (q && ![m.name, m.summary, m.author.name, ...(me() ? [m.author.github] : []), ...m.tags].join(' ').toLowerCase().includes(q)) return false;
+    // A mod has one type, so several types mean "any of these"; tags and requirements mean "all of these".
+    for (const [key, , values] of FACETS) {
+      if (key === skip || !s[key].length) continue;
+      const has = (v) => values(m).includes(v);
+      if (key === 'type' ? !s[key].some(has) : !s[key].every(has)) return false;
+    }
+    if (s.nocode && m.runsCode.length) return false;
+    return true;
+  }
+  function renderBrowse() {
+    const s = browseState();
+    const mods = visibleMods();
+    const hits = mods.filter((m) => matches(m, s)).sort(SORTS[s.sort][1]);
+    $('#sort').value = s.sort;
+    $('#count').textContent = `${hits.length} mod${hits.length === 1 ? '' : 's'}`;
+    $('#results').innerHTML = hits.length ? hits.slice(0, s.shown).map(card).join('') : '<p class="empty" style="grid-column:1/-1">No mods match. Try fewer filters.</p>';
+    $('#more').innerHTML = hits.length > s.shown ? `<button class="btn" data-more>Show more (${hits.length - s.shown})</button>` : '';
+
+    const facetHtml = FACETS.map(([key, title, values, label]) => {
+      const counts = new Map();
+      for (const m of mods.filter((x) => matches(x, s, key))) for (const v of new Set(values(m))) counts.set(v, (counts.get(v) ?? 0) + 1);
+      for (const v of s[key]) if (!counts.has(v)) counts.set(v, 0);
+      const sorted = [...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(b[0]));
+      const open = store.get(`facet-open-${key}`, false);
+      const limit = key === 'type' || open ? sorted.length : 8;
+      return `<div class="facet"><h3>${title}</h3>${sorted.slice(0, limit).map(([v, n]) => `<label><input type="checkbox" data-facet="${key}" value="${esc(v)}" ${s[key].includes(v) ? 'checked' : ''}>${esc(label(v))}<small>${n}</small></label>`).join('')}
+        ${sorted.length > limit ? `<button class="more" data-facet-more="${key}">Show all ${sorted.length}</button>` : ''}</div>`;
+    }).join('');
+    const nocodeCount = mods.filter((m) => matches(m, { ...s, nocode: false }) && !m.runsCode.length).length;
+    $('#facets').innerHTML = facetHtml + `<div class="facet"><h3>Contents</h3><label><input type="checkbox" data-nocode ${s.nocode ? 'checked' : ''}>No game plugins<small>${nocodeCount}</small></label></div>
+      <div class="facet"><h3>Adult mods</h3>${me() ? `<p class="locked">${settings.adult ? 'Shown, as your settings say.' : 'Hidden. Change it in <a href="me.html#settings">settings</a>.'}</p>` : '<p class="locked">Hidden. Sign in to choose.</p>'}</div>`;
+
+    const chips = [];
+    if (s.q) chips.push(['q', s.q, `“${s.q}”`]);
+    for (const [key, , , label] of FACETS) for (const v of s[key]) chips.push([key, v, label(v)]);
+    if (s.nocode) chips.push(['nocode', '1', 'No game plugins']);
+    $('#chips').innerHTML = chips.map(([k, v, l]) => `<button class="chip" data-unchip="${esc(k)}" data-value="${esc(v)}">${esc(l)} <span aria-label="Remove">×</span></button>`).join('')
+      + (chips.length > 1 ? '<button class="chip clear" data-clear>Clear all</button>' : '');
+    writeState(s);
+  }
+  function updateBrowse(change) {
+    const s = browseState();
+    change(s);
+    s.shown = 12;
+    writeState(s);
+    renderBrowse();
+  }
+
+  // ---- events ----
+  function wire(page) {
+    document.addEventListener('click', onClick);
+    $('#whoBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = $('#whoMenu');
+      menu.classList.toggle('open');
+      e.currentTarget.setAttribute('aria-expanded', menu.classList.contains('open'));
+    });
+    if (page === 'browse') {
+      let timer;
+      $('#q').addEventListener('input', (e) => { clearTimeout(timer); timer = setTimeout(() => updateBrowse((s) => { s.q = e.target.value; }), 150); });
+      $('#sort').addEventListener('change', (e) => updateBrowse((s) => { s.sort = e.target.value; }));
+      $('#facets').addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.dataset.facet) updateBrowse((s) => { s[t.dataset.facet] = t.checked ? [...s[t.dataset.facet], t.value] : s[t.dataset.facet].filter((v) => v !== t.value); });
+        if (t.hasAttribute('data-nocode')) updateBrowse((s) => { s.nocode = t.checked; });
+      });
+      renderBrowse();
+    }
+    if (page === 'mod' || page === 'me' || page === 'admin') setupTabs(page);
+    if (page === 'mod') {
+      $('#files')?.addEventListener('change', updateSelection);
+      updateSelection();
+    }
+    $('#adultToggle')?.addEventListener('change', (e) => { settings.adult = e.target.checked; store.set('settings', settings); toast(settings.adult ? 'Adult mods are shown.' : 'Adult mods are hidden.'); });
+    $('[data-block]')?.addEventListener('submit', (e) => { e.preventDefault(); toast('Added to the private blocklist. The registry checks see it at once.'); });
+  }
+
+  function setupTabs(page) {
+    const tabs = $$('[data-tab]');
+    if (!tabs.length) return;
+    const show = (key) => {
+      for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.tab === key));
+      for (const p of $$('[data-panel]')) p.hidden = p.dataset.panel !== key;
+      if (page !== 'mod') history.replaceState(null, '', `#${key}`);
+    };
+    for (const t of tabs) t.addEventListener('click', () => show(t.dataset.tab));
+    const wanted = location.hash.slice(1);
+    show(tabs.some((t) => t.dataset.tab === wanted) ? wanted : tabs[0].dataset.tab);
+    pages._showTab = show;
+  }
+
+  function updateSelection() {
+    const sum = $('#selSum');
+    if (!sum) return;
+    const chosen = $$('#files input:checked');
+    const total = chosen.reduce((n, i) => n + Number(i.dataset.size || 0), 0) + byIdFromPage().files.filter((f) => f.role === 'required').reduce((n, f) => n + f.size, 0);
+    sum.textContent = `${chosen.length} file${chosen.length === 1 ? '' : 's'} · ${bytes(total)}`;
+  }
+  const byIdFromPage = () => byId(params.get('id') ?? '') ?? D.mods[0];
+
+  function onClick(e) {
+    const t = e.target.closest('button, a');
+    if (!$('#whoMenu')?.contains(e.target)) $('#whoMenu')?.classList.remove('open');
+    if (e.target.matches('[data-close]')) { $('#modal').innerHTML = ''; return; }
+    if (!t) return;
+    const d = t.dataset;
+    if (d.role) return setRole(d.role);
+    if ('signin' in d) { e.preventDefault(); return signInModal(); }
+    if (d.as) { $('#modal').innerHTML = ''; setRole(d.as); return toast(`Signed in as ${PERSONAS[d.as].name} (${PERSONAS[d.as].via}).`); }
+    if ('signout' in d) { setRole('visitor'); return toast('Signed out.'); }
+    if (d.like) {
+      e.preventDefault();
+      if (!me()) return signInModal();
+      likes.has(d.like) ? likes.delete(d.like) : likes.add(d.like);
+      store.set('likes', [...likes]);
+      return render();
+    }
+    if ('install' in d) {
+      const m = byIdFromPage();
+      return toast(`Opens VS Code: vscode://edgemodders.edgemods/install?mod=${m.id}&version=${m.version}. EDGEmods downloads the files and REDdeck installs them.`);
+    }
+    if (d.tabOpen) { pages._showTab?.(d.tabOpen); $('.tabs')?.scrollIntoView({ behavior: 'smooth' }); return; }
+    if (d.shot) {
+      const m = byIdFromPage();
+      $('#galleryMain').innerHTML = art(m, Number(d.shot), 16 / 9);
+      $('#galleryCaption').textContent = `Screenshot ${d.shot} of ${m.gallery}`;
+      for (const b of $$('[data-shot]')) b.setAttribute('aria-current', String(b === t));
+      return;
+    }
+    if (d.toast) { e.preventDefault(); return toast(d.toast); }
+    if (d.unchip) return updateBrowse((s) => { if (d.unchip === 'q') s.q = ''; else if (d.unchip === 'nocode') s.nocode = false; else s[d.unchip] = s[d.unchip].filter((v) => v !== d.value); if (d.unchip === 'q') $('#q').value = ''; });
+    if ('clear' in d) { $('#q').value = ''; return updateBrowse((s) => { s.q = ''; s.type = []; s.tag = []; s.needs = []; s.nocode = false; }); }
+    if (d.facetMore) { store.set(`facet-open-${d.facetMore}`, true); return renderBrowse(); }
+    if ('more' in d) { const s = browseState(); s.shown += 12; const p = new URLSearchParams(location.search); p.set('shown', String(s.shown)); history.replaceState(null, '', `?${p}`); return renderBrowse(); }
+    if (t.id === 'filtersToggle') { const f = $('#facets'); f.classList.toggle('open'); t.setAttribute('aria-expanded', f.classList.contains('open')); }
+  }
+
+  function render() {
+    const page = document.body.dataset.page;
+    document.removeEventListener('click', onClick);
+    shell(page);
+    $('#main').innerHTML = pages[page]();
+    wire(page);
+  }
+
+  render();
+})();
