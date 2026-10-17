@@ -1,0 +1,67 @@
+{
+  "$schema": "https://edgemods.ai/schema/edgemods-1.json",
+  "schemaVersion": 1,
+  "id": "edgemods-example",
+  "name": "EDGEmods Example",
+  "summary": "An example of a mod's metadata for EDGEmods: three kinds of release files, requirements on and off EDGEmods, a card and a gallery.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Edgemodders",
+    "github": "Edgemodders"
+  },
+  "credits": [
+    { "name": "CyberbuildsAI", "for": "the example" }
+  ],
+  "license": "MIT",
+  "type": "modding-resource",
+  "tags": ["example", "documentation"],
+  "gameVersion": "2.31",
+  "images": {
+    "card": "images/card.png",
+    "gallery": [
+      { "path": "images/screenshot-1.png", "caption": "A gallery image with a caption." }
+    ]
+  },
+  "files": [
+    {
+      "name": "edgemods-example-1.0.0.zip",
+      "role": "required",
+      "title": "Main file",
+      "note": "Install this first."
+    },
+    {
+      "name": "edgemods-example-body-a-1.0.0.zip",
+      "role": "choose-one",
+      "group": "Body",
+      "title": "Body A",
+      "note": "Choose-one files override the same thing, so only one of the group is installed."
+    },
+    {
+      "name": "edgemods-example-body-b-1.0.0.zip",
+      "role": "choose-one",
+      "group": "Body",
+      "title": "Body B"
+    },
+    {
+      "name": "edgemods-example-extras-1.0.0.zip",
+      "role": "optional",
+      "title": "Extras",
+      "note": "Optional files can be added on top."
+    }
+  ],
+  "requirements": [
+    {
+      "name": "ArchiveXL",
+      "url": "https://www.nexusmods.com/cyberpunk2077/mods/4198",
+      "note": "A requirement outside EDGEmods, as a link."
+    },
+    {
+      "mod": "edgemods-example-core",
+      "minVersion": "1.2.0",
+      "note": "A requirement on EDGEmods, by its id. This one is made up for the example."
+    }
+  ],
+  "links": {
+    "homepage": "https://edgemods.ai"
+  }
+}

@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edgemods.ai/schema/edgemods-1.json",
+  "title": "EDGEmods mod metadata (edgemods.json)",
+  "description": "Describes a Cyberpunk 2077 mod for the EDGEmods registry. Written by the EDGEmods publishing form.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This schema, for editors."
+    },
+    "schemaVersion": {
+      "const": 1,
+      "description": "The format version."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Lowercase words joined by dashes. Unique on EDGEmods; never changed after publishing."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "The mod's name."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 200,
+      "description": "The card's short description."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "description": "This release's version, MAJOR.MINOR.PATCH. The release is tagged v<version>."
+    },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "The name shown on the mod page."
+        },
+        "github": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$",
+          "description": "The GitHub login that owns the mod's repository."
+        }
+      },
+      "required": [
+        "name",
+        "github"
+      ],
+      "additionalProperties": false
+    },
+    "credits": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "for": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "An SPDX identifier such as MIT or CC-BY-4.0, or the terms in a few words."
+    },
+    "type": {
+      "enum": [
+        "gameplay",
+        "visual",
+        "characters",
+        "clothing",
+        "weapons",
+        "vehicles",
+        "audio",
+        "ui",
+        "world",
+        "quests",
+        "utility",
+        "modding-resource",
+        "other"
+      ],
+      "description": "What the mod mainly is."
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "Lowercase words joined by dashes."
+      }
+    },
+    "gameVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^\\d+\\.\\d+(?:\\.\\d+)?[a-z]?$",
+      "description": "The game version the mod was tested with, such as 2.31."
+    },
+    "adult": {
+      "type": "boolean",
+      "description": "The mod has adult content."
+    },
+    "images": {
+      "type": "object",
+      "properties": {
+        "card": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!.*(?:^|\\/)\\.{1,2}(?:\\/|$))images\\/(?:[A-Za-z0-9._-]+\\/)*[A-Za-z0-9._-]+\\.(?:[Pp][Nn][Gg]|[Jj][Pp][Ee]?[Gg]|[Ww][Ee][Bb][Pp])$",
+          "description": "The card image under images/: 2:1, at least 640 × 320, 1280 × 640 recommended."
+        },
+        "gallery": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^(?!.*(?:^|\\/)\\.{1,2}(?:\\/|$))images\\/(?:[A-Za-z0-9._-]+\\/)*[A-Za-z0-9._-]+\\.(?:[Pp][Nn][Gg]|[Jj][Pp][Ee]?[Gg]|[Ww][Ee][Bb][Pp])$",
+                "description": "An image under images/."
+              },
+              "caption": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 140
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "card"
+      ],
+      "additionalProperties": false
+    },
+    "page": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!.*(?:^|\\/)\\.{1,2}(?:\\/|$))(?:[A-Za-z0-9._-]+\\/)*[A-Za-z0-9._-]+\\.[Mm][Dd]$",
+      "description": "The mod page's markdown. Default README.md."
+    },
+    "changelog": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!.*(?:^|\\/)\\.{1,2}(?:\\/|$))(?:[A-Za-z0-9._-]+\\/)*[A-Za-z0-9._-]+\\.[Mm][Dd]$",
+      "description": "The changelog. Default CHANGELOG.md, when it exists."
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "description": "The release's files.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*\\.(?:[Zz][Ii][Pp]|7[Zz])$",
+            "description": "The release asset's file name, exactly."
+          },
+          "role": {
+            "enum": [
+              "required",
+              "optional",
+              "choose-one"
+            ],
+            "description": "required, optional, or choose-one (one of a group)."
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "For choose-one files: the group whose files replace each other."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "A short label for the file."
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Free-form explanation of the file."
+          }
+        },
+        "required": [
+          "name",
+          "role"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "role": {
+              "const": "choose-one"
+            }
+          },
+          "required": [
+            "role"
+          ]
+        },
+        "then": {
+          "required": [
+            "group"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "group"
+            ]
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A mod on EDGEmods.",
+            "properties": {
+              "mod": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "description": "The id of a mod on EDGEmods."
+              },
+              "minVersion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                "description": "The oldest version that works."
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "mod"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Something elsewhere: another mod site, a file host.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+                "description": "Where to get it."
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "name",
+              "url"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "homepage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+          "description": "The homepage link."
+        },
+        "nexus": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+          "description": "The nexus link."
+        },
+        "discord": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+          "description": "The discord link."
+        },
+        "donate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+          "description": "The donate link."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "summary",
+    "version",
+    "author",
+    "license",
+    "type",
+    "images",
+    "files"
+  ],
+  "additionalProperties": false
+}
