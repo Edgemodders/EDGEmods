@@ -17,7 +17,7 @@ The EDGEmods extension for VS Code browses the registry and installs mods throug
 **[Read the docs](https://edgemodders.github.io/EDGEmods/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: scaffold.** The repository, the branding, the docs site and a design brief (draft 0.1) exist; there is no code and no mod website yet. Next: R0, the design.
+> **Status: scaffold.** The repository, the branding, the docs site and the design (draft 0.2, in progress) exist; there is no code and no mod website yet. Next: finishing R0, the design.
 
 ## Repository layout
 

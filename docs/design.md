@@ -1,121 +1,197 @@
 # EDGE<span class="y">mods</span> design
 
-EDGEmods is a mod website for Cyberpunk 2077 that hosts nothing itself. Every mod lives in its author's own git repository. EDGEmods is a **registry**: a list of those repositories, and a website that renders a page for each mod from what is in its repository. A VS Code extension, also called EDGEmods, browses and installs the mods, and publishes a REDcode project as a mod in one guided step. The other EDGE tools read the same registry.
+EDGEmods is a mod website for Cyberpunk 2077 that hosts no mod files. Every mod lives in its author's own GitHub repository. EDGEmods is a **registry**: a list of those repositories, checked on the way in, and a website that builds a searchable catalogue and a page for each mod from what is in its repository. A VS Code extension, also called EDGEmods, browses and installs mods, and publishes and manages a modder's own mods. The other EDGE tools read the same registry.
 
-**Status: draft 0.1, a starting brief.** Written on 2026-10-17 by the REDcode session that scaffolded this repo, from the owner's description of the idea that day (summarized under "The idea"). Everything else here is a proposal or marked *open* or *unverified*, for EDGEmods' own first session to settle with the owner. That session replaces this page, section by section, with the real design. Next: R0.
+**Status: draft 0.2, 2026-10-17.** Sections marked **Decided** were agreed with the owner in chat on 2026-10-17. Sections marked **Proposed** are not decided yet. The research behind this page is in [R0 research](research.html). Next: the remaining open questions, then the metadata format.
 
-## The idea, as the owner put it
+## The idea, as the owner put it (Decided)
 
-| Point | In practice |
-|---|---|
-| A mod hosting website that the EDGE tools and extensions interact with | One registry, read by the website, the EDGEmods extension, REDdeck and the assistants |
-| Only a registry that pulls in mods hosted on git | EDGEmods stores no mod files. The repository is the source of truth: text, images, versions and downloads |
-| An EDGEmods extension for browsing the mods on the website | Browse, read a mod's page, install it, in VS Code |
-| The extension publishes a REDcode mod to git, packaged in a certain way (a special README, an image folder, and so on) | A fixed layout for a mod's repository, so the website can render the mod's page from it |
+| # | Goal | In practice |
+|---|---|---|
+| 1 | The mod lifecycle is key. A mod made in REDcode is published to EDGEmods from REDcode, by a project button or a command, which opens a form for the mod's details | Name, short description, version, a markdown page for the mod, files, requirements and more. The form's fields are designed later |
+| 2 | Publishing creates a GitHub repository for the mod and pushes the mod's files, including structured files the website uses | A metadata JSON file and a `README.md` at least; the full layout is part of the design |
+| 3 | EDGEmods has a main repository with the registry. Publishing opens a pull request on it that adds the mod repository's URL | The modder signs in to GitHub; the pull request is opened from their computer |
+| 4 | A CI workflow on that pull request checks that the mod repository has the required files and that they conform | What exactly is checked is part of the design |
+| 5 | If the checks pass, the pull request merges automatically. The registry on `main` is the source of truth; the website builds its searchable database from the listed mods' metadata | A mod that fails never enters the database |
+| 6 | The website looks like part of the EDGE family | The house style of REDnode, REDdeck, EDGEwave and the rest |
+| 7 | Browse new and recently updated mods. Each mod has a card: image, name, short description, downloads, likes, size, version, tags and type (visual, gameplay, modding resource and so on). Search, sort, filter and facets, such as all new gameplay mods | More card fields will come |
+| 8 | A merge to `main` starts a second workflow, on the owner's own machine, that rebuilds the website's index: a `node:sqlite` database backed up to S3 with Litestream | |
+| 9 | The website runs behind a Node service that reads the database | Designed in a later step |
+| 10 | Users register and sign in with Auth0. The sign-in from the owner's TheLostRealms application is the template | See "Accounts" below |
 
 ## Mission
 
-EDGE brings modding to everyone, especially non-coders: easy, fun and fast. Sharing a mod today means a hosting site's upload forms, a page written in its markup, and screenshots uploaded one by one, repeated for each version. With EDGEmods, the mod's repository already is its page. Publishing a new version is a release, made by one action in the editor.
+EDGE brings modding to everyone, especially non-coders: easy, fun and fast. Sharing a mod today means a hosting site's upload forms, a page written in its markup, and screenshots uploaded one by one, repeated for each version. With EDGEmods, the mod's repository already is its page, and publishing a new version is one action in the editor.
 
 | Rule | In practice |
 |---|---|
 | The author owns everything | Files, text, images and history stay in the author's repository. Leaving EDGEmods loses nothing |
-| One action to publish | From a REDcode project: check, describe, add images, push, release, register |
+| One action to publish | From a REDcode project: describe, add files and images, push, release, register |
 | The page comes from the repository | No second copy of the description to keep in step |
 | Everything the UI does, an assistant can do | Each feature ships in the UI and the MCP server together |
-| Open and inspectable | The registry is a public list; anyone can read it, build on it, or mirror it |
+| Open and inspectable | The registry is a public list in a public repository |
 
-## Prior art, to study in R0
+## The mod lifecycle (Decided)
 
-How other projects run a registry over repositories they do not host. From memory; R0 checks each one and records what to copy and what to avoid.
-
-| Project | How it works (unverified details) | Worth studying for |
+| Step | Who | What happens |
 |---|---|---|
-| Obsidian community plugins | A JSON list in one GitHub repository; authors add their plugin with a pull request, which is reviewed. The app reads a manifest and README from each plugin's repository and downloads release assets | The closest model: review on entry, releases as downloads |
-| Homebrew taps, Scoop buckets | Git repositories of small manifests that point to downloads elsewhere | Manifests as plain files in git |
-| pkg.go.dev | Indexes modules straight from version control and renders their docs | Pages rendered from the repository |
-| Nexus Mods, Thunderstore | Host the files themselves, with accounts, uploads and moderation | What EDGEmods does differently, and what modders will expect anyway (endorsements, requirements, file lists) |
+| Make | The modder, in REDcode | A WolvenKit project, packed by REDcode |
+| Publish | The modder, in the EDGEmods extension | REDcode's project button opens the EDGEmods publishing form in the editor. The form creates the GitHub repository, pushes the mod's files, makes a release with a version tag, and opens the registry pull request |
+| Check | EDGEmods CI | The merge checks run on the pull request (see "The registry and its checks") |
+| Merge | EDGEmods CI | Automatic when every check passes. The owner spot-reviews afterwards |
+| Index | The owner's machine | The merge to `main` starts the rebuild of the website's database |
+| Update | The modder, in the EDGEmods extension | Update a mod, replace files, change the version, and other admin tasks, from the extension's explorer of the modder's published mods. A new version is a new release in the mod's repository |
 
-## A mod's repository (proposed)
+Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds the button that opens it. The form's full set of actions is designed later.
 
-The layout the EDGEmods extension writes and the website reads. Names are proposals.
+## The registry and its checks
+
+**Decided:**
+
+- The registry lives in this repository. Publishing adds a mod by a pull request that adds the mod repository's URL.
+- The merge checks are a chain of steps; each can pass, fail, or add tags. The pull request merges automatically when all pass.
+- **At launch:** the structure checks and a binary and malware step.
+- **Soon after:** an agent review of the repository's content. It adds tags such as NSFW to the EDGEmods database, and fails the pull request for clearly illegal content (to be defined by the owner).
+- EDGEmods does not otherwise police mods. Each repository is its modder's responsibility, and CD Projekt RED or anyone else takes concerns to that repository.
+- Requirements that are external links (another mod site, a file host) are not scanned for now.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| Layout | One small file per mod, `registry/<github-user>/<mod>.json`, with the repository URL, the owner and GitHub's numeric repository id | Pull requests that all edit one list conflict, and only the first can merge automatically. The numeric id survives renames |
+| Trigger | `pull_request_target`, which never checks out or runs the pull request's code and reads everything from the mod repository as data | Plain `pull_request` workflows wait for a maintainer's approval for first-time contributors, which every new modder is |
+| Structure checks | Exactly one added file, in the right folder; the pull request's author owns the mod repository; the metadata matches the schema; the README exists; a release with a version tag exists; sizes are within limits; the name is not too close to an existing mod's | |
+| Binary and malware step | List each release file's contents without extracting anything to run; mark `.dll`, `.exe`, `.asi` and scripts so the mod page says so in plain words; record hashes; scan with VirusTotal (its terms for this use need checking), ClamAV on the owner's machine, or both | RED4ext plugins run inside the game with the player's permissions |
+| Merging | A small EDGEmods GitHub App merges, and reads repositories for the indexer | A merge made with the workflow's own token would not start the rebuild on `main`; an App also has higher API limits |
+| Agent review | Returns a fixed, structured answer only: pass or fail, plus tags from an agreed list. It can block a mod or add tags, never approve one by itself. No write access, no secrets | Mod READMEs are untrusted and could try to instruct it |
+| Updates | No pull request for a new version. The indexer reads each mod's latest release on a schedule and runs the same checks on anything new. A failing release hides the mod until it is fixed; the registry entry stays | The website must see new releases, which do not touch `main` |
+| Removal | A repository that is deleted or taken down drops off the website on the next pass; the registry file stays as history | |
+
+## A mod's repository
+
+**Decided:**
+
+- The publishing form writes a metadata JSON file and a `README.md`, which the website renders as the mod's page.
+- Releases carry version tags set by the publishing process. A release can hold several files.
+- Each file has a role (required, optional, choose one and so on) and a free-text note. "Choose one" covers variants that override the same thing, such as different body meshes, so one mod offers options instead of becoming many mods.
+- A mod lists its requirements: other EDGEmods mods, picked from a search box, or external links.
+
+**Proposed:** the metadata format gets its own page once agreed. A starting point:
 
 | Path | What it is |
 |---|---|
-| `edgemods.json` | The manifest: id, name, one-line summary, author, license, version, game version, requirements (ArchiveXL, TweakXL, RED4ext, REDnode and so on, with minimum versions), kind (archive, REDmod, REDnode package, scripts), tags, cover image, gallery order |
+| `edgemods.json` | The metadata: id, name, short description, author, license, type, tags, version, game version, card image, gallery order, requirements, and the files of each release with their role and note |
 | `README.md` | The mod page's body, in GitHub-flavored markdown |
-| `images/` | Cover and gallery images, referenced by the manifest |
-| `CHANGELOG.md` | Optional; the website shows it per version |
-| Releases | One per version, tagged `vX.Y.Z`, with the zip laid out like the game folder (what REDcode's pack makes) as the download |
-| The project itself | Optional: a REDcode or WolvenKit project, if the author shares the source |
+| `images/` | The card image and the gallery |
+| `CHANGELOG.md` | Optional; shown per version |
+| Releases | One per version, tagged `vX.Y.Z`, with the mod's files as release assets. Files over 100 MB cannot go in git, while release assets can be up to 2 GiB each |
 
-A JSON schema for `edgemods.json` lives in this repo, so the extension, the website and any editor validate it the same way.
+## The website
 
-## How it fits together (proposed)
+**Decided:**
 
-| Part | What it is |
+- A Node service in front of a `node:sqlite` database, backed up to S3 with Litestream.
+- Anyone can browse anonymously: cards, search, sort, facets, and mod pages with their releases and files.
+- Downloading, and seeing where a mod comes from (its GitHub repository), need a registered account. This is a **soft gate**, a reason to register, not access control: the registry and the mod repositories are public on GitHub.
+- Likes are the website's own, one per signed-in account.
+- Download counts are the website's own, not GitHub's release counts, which include bots.
+- The look follows the EDGE house style (see [R0 research](research.html#house-style)).
+
+**Proposed:**
+
+| Topic | Proposal |
 |---|---|
-| The registry | A list of mod repositories, kept in this repository (`registry/`). How a mod gets on it is open (see the open questions) |
-| The indexer | A scheduled GitHub Actions job that reads each listed repository (manifest, README, images, releases) and writes a static JSON index |
-| The website | A static site built from that index: a mod list with search and filters, and a page per mod. No server and no database, if R0 confirms that is enough |
-| `extensions/edgemods` | The VS Code extension, id `edgemodders.edgemods` (proposed). Its own activity bar container, icon [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEmods/blob/main/tools/brand/activity.svg) (HUD brackets around a grid of tiles, one color). Browse, mod page, install, publish |
-| `extensions/edgemods/src/core` | Everything that is not UI. **No VS Code imports**, so the MCP server bundles it |
-| `packages/edgemods-mcp` | The MCP server over stdio |
+| Downloads | Every download, from the website or the extension, goes through one endpoint, like `/download/<mod>/<version>/<file>`, which counts it and redirects to the GitHub file. Repeats from the same account are counted once per file per day |
+| Images | The website serves cached copies of each mod's images and rewrites links to the repository on anonymous pages. Otherwise `raw.githubusercontent.com` addresses would show the origin. It also keeps the pages fast and sanitized |
+| Sanitizing | READMEs are untrusted. Sanitize the HTML; show only the mod's own images |
+| Search | In SQLite, with full-text search (FTS5, if `node:sqlite` includes it: unverified) and facet counts |
+| Look | EDGEweb's `site.css` as the base: cut-corner card panels, yellow for active and primary, cyan for links, uppercase mono labels, dark only. The filter chips follow REDdeck's library view |
 
-| Relationship | How |
+## Accounts (Decided)
+
+| Who | Signs in with | Can |
+|---|---|---|
+| Anyone | Nothing | Browse |
+| Player | Any Auth0 account: email, Google, GitHub | Download, like, see a mod's origin, browse and install in VS Code |
+| Modder | A GitHub account through Auth0, required for publishing | All of the above, plus publish and manage their mods; the extension shows their published mods |
+
+A modder who signs in with email or Google can browse but does not see their published mods, which belong to their GitHub account. The Auth0 tenant does not exist yet.
+
+**Proposed**, following TheLostRealms (details in [R0 research](research.html#thelostrealms-auth0-code)):
+
+| Part | Proposal |
 |---|---|
-| REDdeck | Owns installing and deploying. The extension's Install hands the release zip to REDdeck, as REDcode's Install does, with a direct fallback only if R0 decides one is needed. REDdeck already groups versions into families keyed by the Nexus mod id; an EDGEmods id would join it. `REDdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff` but no install from a downloaded archive: a likely first `request` issue to REDdeck |
-| REDcode | Owns the project and packing. Publish reads the project (`REDcodeApi` version 1: project, pack) and the `.cpmodproj` fields (name, version, description, author). Never imports its code |
-| GitHub | Repositories and releases are made with the author's own GitHub account through VS Code's GitHub sign-in. Other git hosts are open |
-| EDGEweb | Owns https://edgemodders.ai. Where the website lives (a path there, or a subdomain) is the owner's decision with EDGEweb |
-| The other EDGE tools | Read the index to find and suggest mods; requests as issues |
-| EDGEkit, EDGEplugin | Bundled, and taught to the assistant, once released |
+| Website sign-in | Auth0 Universal Login, authorization code with PKCE, done by the server, as TheLostRealms does |
+| Sessions | An opaque session id in an HttpOnly cookie, stored in the database so sessions can be revoked |
+| API | One check that accepts the website's cookie or the extension's Bearer token (an Auth0 access token, RS256, audience checked), with a same-origin check for writes through the cookie |
+| Extension sign-in | An Auth0 sign-in provider in VS Code: the system browser with a loopback PKCE redirect; the refresh token kept in VS Code's secret storage |
+| Modder check | Publishing endpoints require an Auth0 user id from the GitHub connection, which carries the numeric GitHub user id. Before publishing, the extension checks that its VS Code GitHub sign-in is the same GitHub user |
+| Admin | An allow-list of verified emails, as in TheLostRealms |
+| Code | Based on the Apache-2.0 sign-in in TheLostRealms' `Registry/`, with its notice kept. TheLostRealms' `Server/` files are under the Business Source License and are not copied |
 
-## The MCP server
+## The EDGEmods extension (Decided)
 
-Intent, not plumbing. Proposed names, settled in R0:
+| Feature | What it does |
+|---|---|
+| Browse | The same cards, search, filters and mod pages as the website, in VS Code, from the website's API |
+| Install | Downloads a release file through the website and hands it to REDdeck, which installs it into the player's local loadout |
+| Install from the website | An Install button on the website opens the extension (proposed: a link like `vscode://edgemodders.edgemods/install?mod=…&version=…`, as Nexus' links already work with REDdeck) |
+| My mods | An explorer of the modder's published mods, from the website's API |
+| Publish and manage | The publishing form: a new mod, an update, replacing files, changing the version, and other admin tasks |
+
+**Proposed:** the extension keeps its non-UI code in `extensions/edgemods/src/core`, with no VS Code imports, so the MCP server can bundle it. Its activity bar icon is [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEmods/blob/main/tools/brand/activity.svg).
+
+## How it fits with the other EDGE tools
+
+| Tool | How |
+|---|---|
+| REDdeck | Owns installing. `REDdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff`, but no install from a downloaded archive. **First request issue (proposed):** something like `installArchive(path, { source: 'edgemods', modId, version, files })`, so EDGEmods versions join REDdeck's families the way Nexus versions do |
+| REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issue (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing |
+| GitHub | Mod repositories and releases are made with the modder's own GitHub account, through VS Code's GitHub sign-in, with the `public_repo` scope only |
+| EDGEweb | Owns https://edgemodders.ai. Where the website lives is open |
+| EDGEkit, EDGEplugin | Bundle EDGEmods, and teach it to the assistant, once released |
+
+## The MCP server (Proposed)
 
 | Tool | Does |
 |---|---|
-| `mods_search` | Finds mods in the registry by words, tag, kind or requirement |
-| `mods_info` | One mod: summary, versions, requirements, what its download contains |
+| `mods_search` | Finds mods by words, tag, type or requirement |
+| `mods_info` | One mod: summary, releases, files, requirements |
 | `mods_install` | Installs a mod through REDdeck |
-| `mods_publish` | Publishes a REDcode project as a mod: checks it, writes the manifest and README, pushes, makes the release, and registers it, asking the user before each step that goes public |
+| `mods_publish` | Publishes a REDcode project as a mod, asking the user before each step that goes public |
 
-## Phases (proposed)
+## Phases (Proposed)
 
-For the first session to agree with the owner. The format comes first, because the website, the extension and REDdeck all depend on it.
+To be agreed. The format comes first, because the checks, the website and the extension all read it.
 
 | Phase | Builds | The test proves |
 |---|---|---|
-| **R0 Design** | Study the prior art, decide the open questions with the owner, write the design. The design document is the output | The owner agrees the design |
-| **R1 Format** | The `edgemods.json` schema, a validator, and an example mod repository | The example validates, and a broken one is explained in plain words |
-| **R2 Registry and website** | The registry, the indexer and the static website | The example mod has a page on the website, rendered from its repository |
-| **R3 Browse and install** | The extension's browse view and mod page; install through REDdeck | A mod found in VS Code is installed and running in the game |
-| **R4 Publish** | Publish from a REDcode project: manifest, README, images, repository, release, registration | A non-coder publishes a mod from REDcode and sees its page |
-| **R5 Ship** | Docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | Someone outside the team publishes a mod from the docs alone |
+| **R0 Design** | This document and the metadata format's page | The owner agrees the design |
+| **R1 Format** | The metadata schema, a validator, an example mod repository | The example validates; a broken one is explained in plain words |
+| **R2 Registry and checks** | The registry folder, the merge checks (structure, binary and malware), the GitHub App, auto-merge | A pull request for the example mod merges by itself; a bad one is refused with a clear reason |
+| **R3 Website** | The indexer, the database and Litestream, the Node service, Auth0, browse, search, the mod page, downloads | The example mod has a page, found by search, downloadable after sign-in |
+| **R4 Browse and install** | The extension's browse view, Auth0 sign-in, install through REDdeck, Install links from the website | A mod found in VS Code is installed through REDdeck and runs in the game |
+| **R5 Publish** | The publishing form, REDcode's button, the repository and release, the registry pull request, My mods, updates | A non-coder publishes a mod from REDcode and sees its page |
+| **R6 Ship** | The agent review, docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | Someone outside the team publishes a mod from the docs alone |
 
 ## Open questions
 
 | Question | Notes |
 |---|---|
-| How a mod gets on the registry | A reviewed pull request (Obsidian), automatic discovery by a GitHub topic, or the extension filing the entry. Review costs time; no review risks spam and malware |
-| Safety | Mods can carry RED4ext plugins (`.dll`) and scripts. What is checked, what the page shows about a download's contents, and how a bad mod is pulled |
-| Game files in public repositories | A mod's archive contains modified game data, as a Nexus download does. Is committing a WolvenKit project's source (`source/archive`) acceptable, or do repositories carry only images, text and releases? CD Projekt RED's modding and fan content terms need reading (unverified) |
-| Sizes | Git hosts limit file sizes; release assets allow far more. Large mods publish their zip as a release asset, not in git (limits unverified) |
-| README rendering | Mod READMEs are untrusted input. The website must sanitize HTML and only show images from the mod's own repository or allowed hosts |
-| Accounts, feedback, counts | No accounts on the site: the git host is the identity. Comments and bug reports as the repository's issues or discussions? Download counts from release statistics? Endorsements? |
-| Other git hosts | GitHub first. GitLab, Codeberg or any git URL later? |
-| Where the website lives | A path on edgemodders.ai, a subdomain, or GitHub Pages under the organisation. A decision with the owner and EDGEweb |
-| Nexus | Cross-posting: a mod on both, linked both ways? REDdeck already speaks to Nexus |
-| Updates | REDdeck or the extension checks the index for newer releases of installed mods |
-| Privacy | No tracking on the website; any network calls in the extension only after the user asks |
+| The metadata format and the publishing form's fields | Next, on their own page |
+| Where the website lives | A path on edgemodders.ai, a subdomain, or another domain; with EDGEweb |
+| Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
+| What the agent review tags and refuses | The owner defines it before R6 |
+| Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |
+| Other git hosts | GitHub only for now |
+| Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
 
 ## Sources
 
 | Source | What it gave |
 |---|---|
-| The owner, 2026-10-17 | The idea |
-| [REDdeck design](https://edgemodders.github.io/REDdeck/design.html) | Installing and deploying, families, the Nexus client |
+| The owner, 2026-10-17 | The idea, goals 1 to 10, and every decision on this page |
+| [R0 research](research.html) | Prior art, GitHub mechanics, legal, TheLostRealms' sign-in, house style |
+| [REDdeck design](https://edgemodders.github.io/REDdeck/design.html) | Installing, families, the Nexus client |
 | [REDcode API](https://edgemodders.github.io/REDcode/api.html) | `REDcodeApi` version 1 |
-| [EDGEfab design](https://edgemodders.github.io/EDGEfab/design.html) | The family's shape, copied here |

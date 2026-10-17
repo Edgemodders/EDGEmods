@@ -25,6 +25,8 @@ nav:
     url: /
   - title: Design
     url: /design.html
+  - title: Research
+    url: /research.html
   - title: Dev setup
     url: /dev-setup.html
   - title: REDdeck
