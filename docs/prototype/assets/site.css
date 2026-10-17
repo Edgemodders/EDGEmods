@@ -204,6 +204,31 @@ select.sort:focus { outline: none; border-color: var(--yellow); }
 .version { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 6px 18px; align-items: start; }
 .version .v { font-family: var(--display); font-weight: 700; font-size: 22px; } .version .v small { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--dim); letter-spacing: .06em; }
 .version ul { margin: 0; padding-left: 18px; } .version li::marker { color: var(--yellow); }
+.posts { display: flex; flex-direction: column; gap: 10px; }
+.post { background: var(--panel); border: 1px solid var(--line); padding: 12px 14px; }
+.post .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+.post .who b { font-family: var(--display); letter-spacing: .03em; }
+.post .who .dim { font-family: var(--mono); font-size: 11px; }
+.post p { margin: 6px 0 8px; }
+.post p:last-child { margin-bottom: 0; }
+.composer { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.composer textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; resize: vertical; }
+.composer textarea:focus { outline: none; border-color: var(--yellow); }
+.composer.gated { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border: 1px dashed var(--line); padding: 12px 14px; font-size: 16px; color: var(--soft); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.composer .row { justify-content: space-between; font-size: 14px; }
+.row.owner { margin-top: 10px; font-size: 14px; }
+.threads { display: flex; flex-direction: column; gap: 8px; }
+.thread { background: var(--panel); border: 1px solid var(--line); }
+.thread[open] { border-color: rgba(25,243,255,.45); }
+.thread summary { cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; list-style: none; }
+.thread summary::-webkit-details-marker { display: none; }
+.thread summary .num { font-family: var(--mono); font-size: 13px; color: var(--dim); padding-top: 2px; }
+.thread summary .title { font-family: var(--display); font-weight: 600; letter-spacing: .02em; }
+.thread summary .meta { grid-column: 2; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.thread summary:hover .title { color: var(--cyan); }
+.thread .body { padding: 0 14px 14px; }
+.thread .post { background: var(--panel-2); }
 .reqs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 .req { display: flex; gap: 12px; align-items: center; padding: 12px 14px; }
 .req .thumb { width: 96px; aspect-ratio: 2 / 1; flex: none; border: 1px solid var(--line); overflow: hidden; }

@@ -296,7 +296,8 @@
             ${who ? '<button class="btn sm" data-toast="A report goes to the EDGEmods admins with your account.">Report this mod</button>' : ''}
           </aside>
         </div>
-        <div class="tabs" role="tablist">${[['about', 'About'], ['files', `Files (${m.files.length})`], ['versions', `Versions (${m.releases.length})`], ['needs', `Requirements (${m.requirements.length})`]]
+        <div class="tabs" role="tablist">${[['about', 'About'], ['files', `Files (${m.files.length})`], ['versions', `Versions (${m.releases.length})`], ['needs', `Requirements (${m.requirements.length})`],
+          ['comments', `Comments (${talk(m).comments.length})`], ['discussions', `Discussions (${talk(m).discussions.length})`], ['issues', `Issues (${talk(m).issues.filter((x) => x.open).length} open)`]]
           .map(([k, l], i) => `<button role="tab" data-tab="${k}" aria-selected="${i === 0}">${l}</button>`).join('')}</div>
         <div class="tabpanel" data-panel="about">${readme(m)}</div>
         <div class="tabpanel" data-panel="files" hidden>${filesPanel(m, latest)}</div>
@@ -312,6 +313,9 @@
             }
             return `<a class="panel req" href="${esc(r.url)}" style="text-decoration:none;color:inherit"><span class="ext">External</span><span><b>${esc(r.name)}</b><small>${esc(new URL(r.url).hostname)} · not checked by EDGEmods</small></span></a>`;
           }).join('')}</div></div>
+        <div class="tabpanel" data-panel="comments" hidden>${commentsPanel(m)}</div>
+        <div class="tabpanel" data-panel="discussions" hidden>${githubPanel(m, 'discussions')}</div>
+        <div class="tabpanel" data-panel="issues" hidden>${githubPanel(m, 'issues')}</div>
       </main>`;
     },
 
@@ -466,6 +470,104 @@
     }).join(', ')}.</p>`;
   }
 
+  // ---- talking about a mod: EDGEmods comments (any account), and the repository's Discussions and Issues (GitHub) ----
+  const PEOPLE = [['Vee Morales', 'vmorales'], ['Jackie Welles', 'jwelles'], ['Panam Palmer', 'panam-p'], ['Kerry Eurodyne', 'keuro'], ['Misty Olszewski', 'misty-o'], ['River Ward', 'rward']];
+  const talkCache = new Map();
+  /** Invented comments, discussions and issues for a mod, the same on every visit. */
+  function talk(m) {
+    if (talkCache.has(m.id)) return talkCache.get(m.id);
+    const i = D.mods.indexOf(m);
+    const p = (k) => PEOPLE[(i + k) % PEOPLE.length];
+    const a = m.author.github;
+    const t = {
+      comments: [
+        { who: p(0)[0], text: `Installed in one click with its requirements. ${m.name} is exactly what I wanted.`, ago: 2, likes: 14 + i },
+        { who: p(1)[0], text: 'Works on 2.31 with my other mods, no conflicts that EDGEdeck could see.', ago: 6, likes: 5 },
+        { who: p(2)[0], text: 'Any chance of a version for the console look? Lovely work either way.', ago: 19, likes: 2 },
+      ].slice(0, 1 + (i % 3)),
+      discussions: [
+        { n: 12 + i, cat: 'Ideas', title: `Ideas for the next version of ${m.name}`, who: p(3)[1], ago: 4, posts: [
+          [p(3)[1], 'It would be great to have a settings page to tune this in game.', 4], [a, 'Planned for the next release. Thanks!', 3]] },
+        { n: 9 + i, cat: 'Q&A', title: 'Does it work alongside other mods of the same type?', who: p(4)[1], ago: 21, answered: true, posts: [
+          [p(4)[1], 'I have two other mods that touch the same things. Is that a problem?', 21], [a, 'They load fine together; mine wins where both change the same file.', 20]] },
+      ].slice(0, 1 + (i % 2)),
+      issues: [
+        { n: 31 + i, open: true, labels: ['bug'], title: 'Flickers after loading a save', who: p(5)[1], ago: 3, posts: [
+          [p(5)[1], 'After loading a save made before installing, things flicker for a few seconds. Game 2.31.', 3]] },
+        { n: 27 + i, open: true, labels: ['question'], title: 'Steam Deck support?', who: p(1)[1], ago: 9, posts: [[p(1)[1], 'Has anyone tried this on the Deck?', 9]] },
+        { n: 18 + i, open: false, labels: ['bug', 'fixed'], title: 'Crash at the main menu with an old Codeware', who: p(2)[1], ago: 40, posts: [
+          [p(2)[1], 'Crashes at the main menu.', 40], [a, `Fixed in ${m.version}: it now says which Codeware it needs.`, 35]] },
+      ].slice(0, 1 + (i % 3)),
+    };
+    talkCache.set(m.id, t);
+    return t;
+  }
+  const commentLikes = new Set(store.get('comment-likes', []));
+  const ghConnected = () => store.get('gh-posting', false);
+  const daysAgo = (d) => ago(new Date(D.NOW - d * 86400000).toISOString());
+
+  function commentsPanel(m) {
+    const who = me();
+    const list = talk(m).comments.map((c, k) => {
+      const key = `${m.id}:${k}`;
+      const on = Boolean(who) && commentLikes.has(key);
+      return `<div class="post"><div class="who"><span class="avatar">${esc(c.who[0])}</span><b>${esc(c.who)}</b><span class="dim">${esc(daysAgo(c.ago))}</span></div>
+        <p>${esc(c.text)}</p><button class="like" data-clike="${esc(key)}" aria-pressed="${on}" title="${who ? (on ? 'Unlike' : 'Like') : 'Sign in to like'}">${ICON.heart}${c.likes + (on ? 1 : 0)}</button></div>`;
+    }).join('');
+    const box = who
+      ? `<div class="composer"><textarea rows="3" placeholder="Say something about ${esc(m.name)}" aria-label="Your comment"></textarea>
+          <div class="row"><span class="dim">Posted on EDGEmods as ${esc(who.name)}</span><button class="btn sm go" data-post="comment">Post comment</button></div></div>`
+      : '<div class="composer gated"><span>Sign in to comment and like comments. Any account works.</span><button class="btn sm go" data-signin>Sign in</button></div>';
+    return `<p class="dim">Comments live on EDGEmods: anyone with an account can join in. For bug reports and longer threads, see Discussions and Issues.</p><div class="posts">${list}</div>${box}`;
+  }
+
+  function githubPanel(m, kind) {
+    const who = me();
+    const title = kind === 'issues' ? 'Issues' : 'Discussions';
+    if (!who) {
+      return `<div class="panel note"><p class="label">${title}</p><p>The mod's ${title.toLowerCase()} live on its GitHub repository. Sign in to read them here.</p><button class="btn go" data-signin>Sign in</button></div>`;
+    }
+    const own = who.github === m.author.github;
+    const rows = talk(m)[kind].map((x) => {
+      const head = kind === 'issues'
+        ? `<span class="tag ${x.open ? 'g' : ''}">${x.open ? 'Open' : 'Closed'}</span>${x.labels.map((l) => `<span class="tag">${esc(l)}</span>`).join('')}`
+        : `<span class="tag c">${esc(x.cat)}</span>${x.answered ? '<span class="tag g">Answered</span>' : ''}`;
+      const posts = x.posts.map(([u, text, d]) => `<div class="post"><div class="who"><span class="avatar">${esc(u[0].toUpperCase())}</span><b>${esc(u)}</b>${u === m.author.github ? '<span class="tag y">Author</span>' : ''}<span class="dim">${esc(daysAgo(d))}</span></div><p>${esc(text)}</p></div>`).join('');
+      const replies = x.posts.length - 1;
+      const tools = own
+        ? `<div class="row owner"><span class="dim">Your mod:</span><button class="btn sm" data-toast="Done on GitHub, and shown here at once.">${kind === 'issues' ? (x.open ? 'Close' : 'Reopen') : 'Mark answered'}</button><button class="btn sm" data-toast="Locked: only you can reply now.">Lock</button></div>`
+        : '';
+      return `<details class="thread" data-thread="${kind}-${x.n}"><summary><span class="num">#${x.n}</span><span class="title">${esc(x.title)}</span><span class="meta">${head}<span class="dim">${esc(x.who)} · ${esc(daysAgo(x.ago))} · ${replies} ${replies === 1 ? 'reply' : 'replies'}</span></span></summary>
+        <div class="body"><div class="posts">${posts}</div>${tools}${ghComposer(kind === 'issues' ? 'Comment' : 'Reply')}</div></details>`;
+    }).join('');
+    const start = kind === 'issues' ? 'Open an issue' : 'Start a discussion';
+    return `<p class="dim">From the mod's GitHub repository, read live. ${kind === 'issues' ? 'Report a bug or ask for a feature.' : 'Ideas, questions and help.'}</p>
+      <div class="row" style="margin-bottom:12px"><button class="btn sm${who.github && ghConnected() ? ' go' : ''}" data-gh-start="${kind}">${start}</button></div>
+      <div class="threads">${rows}</div>`;
+  }
+
+  /** The post box for GitHub: needs a GitHub account, then a one-time "connect GitHub for posting". */
+  function ghComposer(verb) {
+    const who = me();
+    if (!who.github) {
+      return '<div class="composer gated"><span>Posting here needs a GitHub account: your post appears on GitHub under it. EDGEmods comments work with any account.</span><button class="btn sm" data-gh-link>Link a GitHub account</button></div>';
+    }
+    if (!ghConnected()) {
+      return `<div class="composer gated"><span>Your post goes to GitHub as <b>${esc(who.github)}</b>. Connect GitHub for posting once; signing in alone never lets EDGEmods post.</span><button class="btn sm go" data-gh-connect>Connect GitHub for posting</button></div>`;
+    }
+    return `<div class="composer"><textarea rows="3" placeholder="Markdown works, as on GitHub" aria-label="Your ${verb.toLowerCase()}"></textarea>
+      <div class="row"><span class="dim">Posts to GitHub as ${esc(who.github)}</span><button class="btn sm go" data-post="github">${verb}</button></div></div>`;
+  }
+
+  /** Re-renders the page, keeping the open tab and threads. */
+  function rerenderMod() {
+    const tab = $('.tabs [aria-selected="true"]')?.dataset.tab;
+    const open = $$('details.thread[open]').map((d) => d.dataset.thread);
+    render();
+    if (tab) pages._showTab?.(tab);
+    for (const id of open) { const d = $(`details.thread[data-thread="${id}"]`); if (d) d.open = true; }
+  }
+
   // ---- browse: search, facets, sort, all in the address bar ----
   const FACETS = [
     ['type', 'Type', (m) => [m.type], (v) => TYPES[v]?.[0] ?? v],
@@ -604,6 +706,34 @@
       likes.has(d.like) ? likes.delete(d.like) : likes.add(d.like);
       store.set('likes', [...likes]);
       return render();
+    }
+    if (d.clike) {
+      if (!me()) return signInModal();
+      commentLikes.has(d.clike) ? commentLikes.delete(d.clike) : commentLikes.add(d.clike);
+      store.set('comment-likes', [...commentLikes]);
+      return rerenderMod();
+    }
+    if ('ghLink' in d) return toast('Adds a GitHub sign-in to your EDGEmods account (Auth0 links the two). Your likes, comments and downloads stay with it. To see the next step, view as Modder.');
+    if ('ghConnect' in d) { store.set('gh-posting', true); rerenderMod(); return toast('One GitHub approval, then you post from EDGEmods. Disconnect any time in your settings.'); }
+    if (d.ghStart) {
+      const who = me();
+      const what = d.ghStart === 'issues' ? 'Opening an issue' : 'Starting a discussion';
+      if (!who.github) return toast(`${what} needs a GitHub account. Link one from any post box.`);
+      if (!ghConnected()) return toast('Connect GitHub for posting first, from any post box.');
+      return toast(`Opens a form: title, ${d.ghStart === 'issues' ? 'what happened and your game version' : 'category'} and text. It posts to the mod's repository as ${who.github}.`);
+    }
+    if (d.post) {
+      const box = t.closest('.composer');
+      const text = box.querySelector('textarea').value.trim();
+      if (!text) return toast('Write something first.');
+      const who = me();
+      const name = d.post === 'github' ? who.github : who.name;
+      const post = document.createElement('div');
+      post.className = 'post';
+      post.innerHTML = `<div class="who"><span class="avatar">${esc(name[0].toUpperCase())}</span><b>${esc(name)}</b><span class="dim">just now</span></div><p>${esc(text)}</p>`;
+      box.parentElement.querySelector('.posts')?.append(post);
+      box.querySelector('textarea').value = '';
+      return toast(d.post === 'github' ? `Posted to GitHub as ${who.github}. It shows here and on GitHub.` : 'Posted on EDGEmods.');
     }
     if ('install' in d) {
       const m = byIdFromPage();

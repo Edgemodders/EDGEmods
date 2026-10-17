@@ -8,7 +8,7 @@ It is plain HTML, CSS and JavaScript in [`docs/prototype`](https://github.com/Ed
 |---|---|
 | [Home](prototype/index.html) | Counts, the mod types, rails of new, recently updated and most liked mods |
 | [Browse](prototype/browse.html) | Search, sort, facets with counts (type, tags, requirements, "no game plugins"), active filters as chips, all kept in the address |
-| [A mod](prototype/mod.html?id=arasaka-tactical-wear) | Gallery, actions, facts, what the download contains, and tabs for the page, the files (required, choose-one groups, optional), versions and requirements |
+| [A mod](prototype/mod.html?id=arasaka-tactical-wear) | Gallery, actions, facts, what the download contains, and tabs for the page, the files (required, choose-one groups, optional), versions, requirements, comments with likes, and the repository's Discussions and Issues. Try the post boxes as each persona: a visitor is asked to sign in, a player (email) to link GitHub, a modder to connect GitHub for posting once |
 | [Account](prototype/me.html?as=modder) | Liked mods, My mods (or how to publish, without GitHub), settings |
 | [Admin](prototype/admin.html?as=admin) | Overview and spot review, mods, users, reports, the blocklist, the audit log |
 | [Publish](prototype/publish.html) | How publishing from REDcode and VS Code works |
@@ -41,5 +41,5 @@ The point of building the prototype first: each item below is something the R3 s
 | Adult mods | Hidden from visitors; signed-in people opt in from settings |
 | "Runs code" | A red tag on cards and a plain warning on the mod page for mods with game plugins (`.dll`, `.asi`) or programs |
 | Featured mods | An admin action exists; the home page does not show a featured rail yet |
-| Comments, Discussions, Issues | Decided 2026-10-17: EDGEmods' own comments with likes, plus Discussions and Issues from the mod's GitHub repository. Not in the prototype yet; the design is in [Talking about a mod](design.html#talking-about-a-mod) |
+| Comments, Discussions, Issues | Decided 2026-10-17: EDGEmods' own comments with likes, plus Discussions and Issues from the mod's GitHub repository. In the prototype; the design is in [Talking about a mod](design.html#talking-about-a-mod) |
 | The home page | Counts, types and three rails. Anything else? |
