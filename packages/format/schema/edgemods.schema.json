@@ -227,6 +227,77 @@
             "minLength": 1,
             "maxLength": 500,
             "description": "Free-form explanation of the file."
+          },
+          "requirements": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "A mod on EDGEmods, at a release.",
+                  "properties": {
+                    "mod": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 64,
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "description": "The id of a mod on EDGEmods."
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                      "description": "The release picked in the publishing form. Newer releases do too, unless exact."
+                    },
+                    "exact": {
+                      "type": "boolean",
+                      "description": "Only this version will do."
+                    },
+                    "note": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "mod",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "description": "Something elsewhere: another mod site, a file host.",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "pattern": "^https:\\/\\/[^\\s/?#]+\\.[^\\s/?#]+(?:[/?#]\\S*)?$",
+                      "description": "Where to get it."
+                    },
+                    "note": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "description": "What this file needs on top of the whole mod's requirements."
           }
         },
         "required": [
@@ -265,7 +336,7 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "A mod on EDGEmods.",
+            "description": "A mod on EDGEmods, at a release.",
             "properties": {
               "mod": {
                 "type": "string",
@@ -274,12 +345,16 @@
                 "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                 "description": "The id of a mod on EDGEmods."
               },
-              "minVersion": {
+              "version": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 64,
                 "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
-                "description": "The oldest version that works."
+                "description": "The release picked in the publishing form. Newer releases do too, unless exact."
+              },
+              "exact": {
+                "type": "boolean",
+                "description": "Only this version will do."
               },
               "note": {
                 "type": "string",
@@ -288,7 +363,8 @@
               }
             },
             "required": [
-              "mod"
+              "mod",
+              "version"
             ],
             "additionalProperties": false
           },

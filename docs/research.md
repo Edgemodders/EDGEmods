@@ -103,7 +103,7 @@ The owner's other application (local checkout `E:\Development\TheLostRealms\thel
 
 ## House style
 
-The EDGE look is defined by the CSS of [REDnode's design page](https://edgemodders.github.io/REDnode/design.html); EDGEweb's `docs/assets/css/site.css` extends it with buttons, tool cards and status pills. REDdeck's library webview (`src/modsPage.ts`) has a search box and facet chips.
+The EDGE look is defined by the CSS of [REDnode's design page](https://edgemodders.github.io/REDnode/design.html); EDGEweb's `docs/assets/css/site.css` extends it with buttons, tool cards and status pills. EDGEdeck's library webview (`src/modsPage.ts`) has a search box and facet chips.
 
 | Token | Value | Role |
 |---|---|---|

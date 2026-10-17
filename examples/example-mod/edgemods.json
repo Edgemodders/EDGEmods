@@ -10,16 +10,25 @@
     "github": "Edgemodders"
   },
   "credits": [
-    { "name": "CyberbuildsAI", "for": "the example" }
+    {
+      "name": "CyberbuildsAI",
+      "for": "the example"
+    }
   ],
   "license": "MIT",
   "type": "modding-resource",
-  "tags": ["example", "documentation"],
+  "tags": [
+    "example",
+    "documentation"
+  ],
   "gameVersion": "2.31",
   "images": {
     "card": "images/card.png",
     "gallery": [
-      { "path": "images/screenshot-1.png", "caption": "A gallery image with a caption." }
+      {
+        "path": "images/screenshot-1.png",
+        "caption": "A gallery image with a caption."
+      }
     ]
   },
   "files": [
@@ -40,13 +49,28 @@
       "name": "edgemods-example-body-b-1.0.0.zip",
       "role": "choose-one",
       "group": "Body",
-      "title": "Body B"
+      "title": "Body B",
+      "requirements": [
+        {
+          "mod": "edgemods-example-body-kit",
+          "version": "2.0.0",
+          "exact": true,
+          "note": "A requirement of one file, pinned: only Body Kit 2.0.0 fits Body B. Made up for the example."
+        }
+      ]
     },
     {
       "name": "edgemods-example-extras-1.0.0.zip",
       "role": "optional",
       "title": "Extras",
-      "note": "Optional files can be added on top."
+      "note": "Optional files can be added on top.",
+      "requirements": [
+        {
+          "name": "Codeware",
+          "url": "https://www.nexusmods.com/cyberpunk2077/mods/7780",
+          "note": "Only the extras need it."
+        }
+      ]
     }
   ],
   "requirements": [
@@ -57,8 +81,8 @@
     },
     {
       "mod": "edgemods-example-core",
-      "minVersion": "1.2.0",
-      "note": "A requirement on EDGEmods, by its id. This one is made up for the example."
+      "version": "1.2.0",
+      "note": "A requirement on EDGEmods, by its id, at the release picked in the publishing form; newer releases work too. Made up for the example."
     }
   ],
   "links": {

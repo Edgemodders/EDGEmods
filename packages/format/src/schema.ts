@@ -31,6 +31,29 @@ const object = (properties: Json, required: string[], description?: string): Jso
 });
 
 export function buildSchema(): Json {
+  const requirements: Json = {
+    type: 'array',
+    maxItems: LIMITS.requirements.max,
+    items: {
+      oneOf: [
+        object(
+          {
+            mod: pattern(ID_PATTERN, LIMITS.id.max, 'The id of a mod on EDGEmods.', LIMITS.id.min),
+            version: pattern(VERSION_PATTERN, 64, 'The release picked in the publishing form. Newer releases do too, unless exact.'),
+            exact: { type: 'boolean', description: 'Only this version will do.' },
+            note: text(LIMITS.requirementNote.max),
+          },
+          ['mod', 'version'],
+          'A mod on EDGEmods, at a release.',
+        ),
+        object(
+          { name: text(LIMITS.requirementName.max), url: url('Where to get it.'), note: text(LIMITS.requirementNote.max) },
+          ['name', 'url'],
+          'Something elsewhere: another mod site, a file host.',
+        ),
+      ],
+    },
+  };
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $id: SCHEMA_URL,
@@ -95,6 +118,7 @@ export function buildSchema(): Json {
                 group: text(LIMITS.fileGroup.max, 1, 'For choose-one files: the group whose files replace each other.'),
                 title: text(LIMITS.fileTitle.max, 1, 'A short label for the file.'),
                 note: text(LIMITS.fileNote.max, 1, 'Free-form explanation of the file.'),
+                requirements: { ...requirements, description: "What this file needs on top of the whole mod's requirements." },
               },
               ['name', 'role'],
             ),
@@ -103,28 +127,7 @@ export function buildSchema(): Json {
             else: { not: { required: ['group'] } },
           },
         },
-        requirements: {
-          type: 'array',
-          maxItems: LIMITS.requirements.max,
-          items: {
-            oneOf: [
-              object(
-                {
-                  mod: pattern(ID_PATTERN, LIMITS.id.max, 'The id of a mod on EDGEmods.', LIMITS.id.min),
-                  minVersion: pattern(VERSION_PATTERN, 64, 'The oldest version that works.'),
-                  note: text(LIMITS.requirementNote.max),
-                },
-                ['mod'],
-                'A mod on EDGEmods.',
-              ),
-              object(
-                { name: text(LIMITS.requirementName.max), url: url('Where to get it.'), note: text(LIMITS.requirementNote.max) },
-                ['name', 'url'],
-                'Something elsewhere: another mod site, a file host.',
-              ),
-            ],
-          },
-        },
+        requirements,
         links: object(Object.fromEntries(LINK_KEYS.map((k) => [k, url(`The ${k} link.`)])), []),
       },
       ['schemaVersion', 'id', 'name', 'summary', 'version', 'author', 'license', 'type', 'images', 'files'],

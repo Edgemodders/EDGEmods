@@ -13,7 +13,7 @@ EDGEmods is a mod website for Cyberpunk 2077 that hosts no mod files. Every mod 
 | 3 | EDGEmods has a main repository with the registry. Publishing opens a pull request on it that adds the mod repository's URL | The modder signs in to GitHub; the pull request is opened from their computer |
 | 4 | A CI workflow on that pull request checks that the mod repository has the required files and that they conform | What exactly is checked is part of the design |
 | 5 | If the checks pass, the pull request merges automatically. The registry on `main` is the source of truth; the website builds its searchable database from the listed mods' metadata | A mod that fails never enters the database |
-| 6 | The website looks like part of the EDGE family | The house style of REDnode, REDdeck, EDGEwave and the rest |
+| 6 | The website looks like part of the EDGE family | The house style of REDnode, EDGEdeck, EDGEwave and the rest |
 | 7 | Browse new and recently updated mods. Each mod has a card: image, name, short description, downloads, likes, size, version, tags and type (visual, gameplay, modding resource and so on). Search, sort, filter and facets, such as all new gameplay mods | More card fields will come |
 | 8 | A merge to `main` starts a second workflow, on the owner's own machine, that rebuilds the website's index: a `node:sqlite` database backed up to S3 with Litestream | |
 | 9 | The website runs behind a Node service that reads the database | Designed in a later step |
@@ -75,7 +75,9 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 - The publishing form writes a metadata JSON file and a `README.md`, which the website renders as the mod's page.
 - Releases carry version tags set by the publishing process. A release can hold several files.
 - Each file has a role (required, optional, choose one and so on) and a free-text note. "Choose one" covers variants that override the same thing, such as different body meshes, so one mod offers options instead of becoming many mods.
-- A mod lists its requirements: other EDGEmods mods, picked from a search box, or external links.
+- A mod lists its requirements, for the whole mod or for one file: other EDGEmods mods, or external links.
+- An EDGEmods requirement is picked in the publishing form from a search box that filters as the modder types, then one of that mod's releases (its version tag). Some requirements pin a version. The choice is in `edgemods.json`, so installing can resolve the chain (the owner, 2026-10-17).
+- External links are the modder's to own: no version, not scanned.
 
 **Proposed:** the layout and every field of `edgemods.json` are on their own page, [the format](manifest.html), built in R1 for review.
 
@@ -99,7 +101,7 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 | Images | The website serves cached copies of each mod's images and rewrites links to the repository on anonymous pages. Otherwise `raw.githubusercontent.com` addresses would show the origin. It also keeps the pages fast and sanitized |
 | Sanitizing | READMEs are untrusted. Sanitize the HTML; show only the mod's own images |
 | Search | In SQLite, with full-text search (FTS5, if `node:sqlite` includes it: unverified) and facet counts |
-| Look | EDGEweb's `site.css` as the base: cut-corner card panels, yellow for active and primary, cyan for links, uppercase mono labels, dark only. The filter chips follow REDdeck's library view |
+| Look | EDGEweb's `site.css` as the base: cut-corner card panels, yellow for active and primary, cyan for links, uppercase mono labels, dark only. The filter chips follow EDGEdeck's library view |
 
 ## Accounts (Decided)
 
@@ -164,8 +166,8 @@ A modder who signs in with email or Google can browse but does not see their pub
 | Feature | What it does |
 |---|---|
 | Browse | The same cards, search, filters and mod pages as the website, in VS Code, from the website's API |
-| Install | Downloads a release file through the website and hands it to REDdeck, which installs it into the player's local loadout |
-| Install from the website | An Install button on the website opens the extension (proposed: a link like `vscode://edgemodders.edgemods/install?mod=…&version=…`, as Nexus' links already work with REDdeck) |
+| Install | Installs a mod with its whole chain of requirements: the server assembles the chain, the extension downloads the files and hands each mod to EDGEdeck, which installs it into the player's loadout (see below) |
+| Install from the website | An Install button on the website opens the extension (proposed: a link like `vscode://edgemodders.edgemods/install?mod=…&version=…`, as Nexus' links already work with EDGEdeck) |
 | My mods | An explorer of the modder's published mods, from the website's API |
 | Publish and manage | The publishing form: a new mod, an update, replacing files, changing the version, and other admin tasks |
 
@@ -183,11 +185,29 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | Layout | `extensions/edgemods`, in the same npm workspace as `packages/*`, as REDcode does. Its non-UI code is in `extensions/edgemods/src/core`, with no VS Code imports, so the MCP server can bundle it. Activity bar icon: [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEmods/blob/main/tools/brand/activity.svg) |
 | Compatibility | The API is versioned (`/api/v1/…`). The server keeps older API versions while extensions still use them; the extension says plainly when it needs a newer server |
 
+## Installing a mod and its requirements
+
+**Decided (the owner, 2026-10-17):** when a player picks a mod to install, the EDGEmods server assembles the dependency chain from the mods' `edgemods.json` files. The EDGEmods extension orchestrates the rest: it downloads every file in the chain from the mods' GitHub releases and hands each mod to EDGEdeck, which installs each one into the loadout.
+
+**Proposed:**
+
+| Topic | Proposal |
+|---|---|
+| The plan | `GET /api/v1/mods/<id>/install-plan?version=…&files=…` returns the mods in install order, requirements first. Each has its id, name, version and files (name, role, group, size, SHA-256, download link), and says which mod or file needs it. It also returns the outside links to get by hand, and any problems. It has download links, so it needs sign-in like any download |
+| Versions | A requirement without `exact` allows its release or any newer one; the plan takes the newest release every requirement in the chain allows. `exact` allows only that release |
+| Conflicts | Requirements that cannot all hold (one needs exactly 1.2.0, another 1.3.0 or newer) stop the install before anything downloads, with a plain message naming who needs what |
+| Which files | Of a required mod: its required files, one file of each choose-one group (the player picks; the first is suggested), and its optional files offered unticked. A file's own requirements join the chain only when that file is chosen |
+| Depth | Requirements of requirements come from each chosen release's `edgemods.json`; the indexer keeps every release's. Up to 20 levels; a loop is reported, not followed |
+| Already installed | The extension asks EDGEdeck what the library has, and skips a mod already there at an allowed version |
+| Downloads | Each file goes through the EDGEmods download link, which counts and redirects to GitHub, and is checked against the SHA-256 the indexer recorded before it reaches EDGEdeck |
+| Outside links | Shown in the plan for the player to get themselves; never fetched |
+| A mod removed later | A requirement that is no longer on EDGEmods (removed, hidden, blocked) is a problem in the plan; the mod that needs it shows a warning on its page |
+
 ## How it fits with the other EDGE tools
 
 | Tool | How |
 |---|---|
-| REDdeck | Owns installing. `REDdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff`, but no install from a downloaded archive. **First request issue (proposed):** something like `installArchive(path, { source: 'edgemods', modId, version, files })`, so EDGEmods versions join REDdeck's families the way Nexus versions do |
+| EDGEdeck | Owns installing. `EDGEdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff`, but no install from a downloaded archive. **First request issue (proposed):** install a list of downloaded mods in order, each as `{ files: [paths], source: 'edgemods', modId, version, requires: [modIds] }`, into the active loadout, so EDGEmods versions join EDGEdeck's families the way Nexus versions do; plus a way to ask which EDGEmods mods and versions the library already has |
 | REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issue (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing |
 | GitHub | Mod repositories and releases are made with the modder's own GitHub account, through VS Code's GitHub sign-in, with the `public_repo` scope only |
 | EDGEweb | Owns https://edgemodders.ai, the platform's site; EDGEmods has its own domain, https://edgemods.ai. EDGEweb can link to it |
@@ -199,7 +219,7 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 |---|---|
 | `mods_search` | Finds mods by words, tag, type or requirement |
 | `mods_info` | One mod: summary, releases, files, requirements |
-| `mods_install` | Installs a mod through REDdeck |
+| `mods_install` | Installs a mod through EDGEdeck |
 | `mods_publish` | Publishes a REDcode project as a mod, asking the user before each step that goes public |
 
 ## Phases (Proposed)
@@ -212,7 +232,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | **R1 Format** | The metadata schema, a validator, an example mod repository | The example validates; a broken one is explained in plain words |
 | **R2 Registry and checks** | The registry folder, the merge checks (structure, binary and malware), the GitHub App, auto-merge | A pull request for the example mod merges by itself; a bad one is refused with a clear reason |
 | **R3 Website** | The indexer, the database and Litestream, the Express service, Auth0, browse, search, the mod page, downloads, the admin page | The example mod has a page, found by search, downloadable after sign-in |
-| **R4 Browse and install** | The extension's browse view, Auth0 sign-in, install through REDdeck, Install links from the website | A mod found in VS Code is installed through REDdeck and runs in the game |
+| **R4 Browse and install** | The extension's browse view, Auth0 sign-in, install through EDGEdeck, Install links from the website | A mod found in VS Code is installed through EDGEdeck and runs in the game |
 | **R5 Publish** | The publishing form, REDcode's button, the repository and release, the registry pull request, My mods, updates | A non-coder publishes a mod from REDcode and sees its page |
 | **R6 Ship** | The agent review, docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | Someone outside the team publishes a mod from the docs alone |
 
@@ -223,7 +243,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | The metadata format and the publishing form's fields | Next, on their own page |
 | Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
 | What the agent review tags and refuses | The owner defines it before R6 |
-| Nexus | Cross-posting, linked both ways? REDdeck already speaks to Nexus |
+| Nexus | Cross-posting, linked both ways? EDGEdeck already speaks to Nexus |
 | Other git hosts | GitHub only for now |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
 
@@ -233,5 +253,5 @@ To be agreed. The format comes first, because the checks, the website and the ex
 |---|---|
 | The owner, 2026-10-17 | The idea, goals 1 to 10, and every decision on this page |
 | [R0 research](research.html) | Prior art, GitHub mechanics, legal, TheLostRealms' sign-in, house style |
-| [REDdeck design](https://edgemodders.github.io/REDdeck/design.html) | Installing, families, the Nexus client |
+| [EDGEdeck design](https://edgemodders.github.io/EDGEdeck/design.html) | Installing, families, the Nexus client |
 | [REDcode API](https://edgemodders.github.io/REDcode/api.html) | `REDcodeApi` version 1 |

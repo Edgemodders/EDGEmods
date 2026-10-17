@@ -6,19 +6,23 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  allRequirements,
   checkModFiles,
   checkRelease,
   formatBytes,
+  isModRequirement,
   MANIFEST_FILE,
   parseManifest,
   releaseTag,
   type Issue,
   type Manifest,
   type ModFiles,
+  type ModRequirement,
+  type PlacedRequirement,
 } from '@edgemodders/edgemods-format';
 import { ArchiveError, listArchive, sha256 } from './archive.js';
 import { summarize, unsafePaths, type ContentSummary } from './contents.js';
-import { parseEntry, parseEntryPath, repoFromUrl, REGISTRY_DIR, type EntryPath, type RegistryEntry } from './entry.js';
+import { entryPath, parseEntry, parseEntryPath, repoFromUrl, REGISTRY_DIR, type EntryPath, type RegistryEntry } from './entry.js';
 import type { GitHub, PullRequest, Release, Repo } from './github.js';
 import { ScannerUnavailable, type Scanner } from './scan.js';
 
@@ -77,6 +81,8 @@ interface State {
   manifest?: Manifest;
   release?: Release;
   downloads: DownloadReport[];
+  /** The registry's entries on its main branch, read by the repository step. */
+  existing?: EntryPath[];
   /** edgemods.json issues the metadata step reported, so the files step does not repeat them. */
   reported: Set<string>;
 }
@@ -104,6 +110,7 @@ const STEPS: [string, string, StepFn][] = [
   ['pull-request', 'The pull request', checkPullRequest],
   ['repository', "The mod's repository", checkRepository],
   ['metadata', 'edgemods.json', checkMetadata],
+  ['requirements', 'Requirements on EDGEmods', checkRequirementsStep],
   ['release', 'The release', checkReleaseStep],
   ['files', 'The mod page and images', checkFiles],
   ['downloads', 'The downloads: contents and malware scan', checkDownloads],
@@ -203,6 +210,7 @@ async function checkRepository(s: Step, state: State, o: CheckOptions): Promise<
   // Ids are unique across EDGEmods: requirements point at them.
   const { files } = await o.github.tree(o.registry, o.baseRef);
   const existing = files.map((f) => parseEntryPath(f.path)).filter((e): e is EntryPath => Boolean(e));
+  state.existing = existing;
   const taken = existing.find((e) => e.id === where.id);
   if (taken) {
     s.fail(taken.owner.toLowerCase() === where.owner.toLowerCase()
@@ -237,6 +245,39 @@ async function checkMetadata(s: Step, state: State, o: CheckOptions): Promise<vo
   if (m.author.github.toLowerCase() !== repo.owner.login.toLowerCase()) {
     s.fail(`edgemods.json names "${m.author.github}" as the author's GitHub login, but the repository belongs to ${repo.owner.login}.`, 'author.github');
   }
+}
+
+/**
+ * Each EDGEmods mod the release needs, for the whole mod or for one file, must be on EDGEmods and have the release
+ * the modder picked, so installing can resolve the chain. Outside links are the modder's to keep right.
+ */
+async function checkRequirementsStep(s: Step, state: State, o: CheckOptions): Promise<void> {
+  const { manifest, existing } = state as Required<Pick<State, 'manifest' | 'existing'>>;
+  const placed = allRequirements(manifest);
+  const links = placed.filter((p) => !isModRequirement(p.requirement)).length;
+  const mods = placed.filter((p): p is PlacedRequirement & { requirement: ModRequirement } => isModRequirement(p.requirement));
+  if (!mods.length) s.notes.push('No requirements on EDGEmods.');
+
+  for (const { requirement: r, file } of mods) {
+    const who = file ? `"${file}" needs` : 'The mod needs';
+    const wanted = `${r.mod} ${r.exact ? `exactly ${r.version}` : `${r.version} or newer`}`;
+    const at = existing.find((e) => e.id === r.mod);
+    if (!at) {
+      s.fail(`${who} "${r.mod}", but no mod with that id is on EDGEmods. Pick it from the search box in the publishing form, or link to it outside EDGEmods.`);
+      continue;
+    }
+    const bytes = await o.github.file(o.registry, o.baseRef, entryPath(at.owner, at.id));
+    const repo = bytes ? parseEntry(new TextDecoder().decode(bytes)).entry : undefined;
+    const fullName = repo && repoFromUrl(repo.repo);
+    const tag = releaseTag(r.version);
+    const release = fullName ? await o.github.releaseByTag(fullName, tag) : undefined;
+    if (!release || release.draft) {
+      s.fail(`${who} ${r.mod} ${r.version}, but ${r.mod} has no release ${r.version} (tag ${tag}). Pick one of its releases in the publishing form.`);
+      continue;
+    }
+    s.notes.push(`${who} ${wanted}.`);
+  }
+  if (links) s.notes.push(`${links} link(s) outside EDGEmods, not checked.`);
 }
 
 async function checkReleaseStep(s: Step, state: State, o: CheckOptions): Promise<void> {

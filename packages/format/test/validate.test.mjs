@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseManifest, validateManifest } from '../dist/index.js';
+import { allRequirements, parseManifest, validateManifest } from '../dist/index.js';
 import { example, messages } from './helpers.mjs';
 
 /** Breaks the example with `change`, and expects one error at `path` whose message contains `words`. */
@@ -125,13 +125,36 @@ test('release files', () => {
 
 test('requirements', () => {
   expectError((m) => { m.requirements[1].mod = 'edgemods-example'; }, 'requirements[1].mod', 'itself');
-  expectError((m) => { m.requirements.push({ mod: 'edgemods-example-core' }); }, 'requirements[2].mod', 'twice');
+  expectError((m) => { m.requirements.push({ mod: 'edgemods-example-core', version: '1.0.0' }); }, 'requirements[2].mod', 'twice');
   expectError((m) => { m.requirements[0].url = 'http://example.com'; }, 'requirements[0].url', 'https');
   expectError((m) => { m.requirements[0].url = 'not a link'; }, 'requirements[0].url', 'not a web address');
   expectError((m) => { m.requirements[0].mod = 'x-y-z'; }, 'requirements[0]', 'both');
   expectError((m) => { m.requirements.push({}); }, 'requirements[2]', 'empty');
   expectError((m) => { delete m.requirements[0].url; }, 'requirements[0].url', 'link is missing');
-  expectError((m) => { m.requirements[1].minVersion = '1.2'; }, 'requirements[1].minVersion', '"1.2.0"');
+  expectError((m) => { m.requirements[1].version = '1.2'; }, 'requirements[1].version', '"1.2.0"');
+  expectError((m) => { delete m.requirements[1].version; }, 'requirements[1].version', 'version is missing');
+  expectError((m) => { m.requirements[1].minVersion = '1.0.0'; }, 'requirements[1].minVersion', 'not a field');
+  expectError((m) => { m.requirements[1].exact = 'yes'; }, 'requirements[1].exact', 'true or false');
+});
+
+test("a file's requirements", () => {
+  expectError((m) => { m.files[2].requirements[0].version = '2'; }, 'files[2].requirements[0].version', '"2.0.0"');
+  expectError((m) => { m.files[2].requirements[0].mod = 'edgemods-example-core'; }, 'files[2].requirements[0].mod', 'whole mod');
+  expectError((m) => { m.files[2].requirements[0].mod = 'edgemods-example'; }, 'files[2].requirements[0].mod', 'itself');
+  expectError((m) => { m.files[3].requirements.push({ name: 'Codeware', url: 'https://www.nexusmods.com/cyberpunk2077/mods/7780' }); }, 'files[3].requirements[1].url', 'twice');
+  expectError((m) => { m.files[0].requirements = {}; }, 'files[0].requirements', 'must be a list');
+});
+
+test("allRequirements lists the whole mod's, then each file's", () => {
+  const m = example();
+  const placed = allRequirements(m);
+  assert.deepEqual(placed.map((p) => [p.file ?? '(mod)', p.requirement.mod ?? p.requirement.name]), [
+    ['(mod)', 'ArchiveXL'],
+    ['(mod)', 'edgemods-example-core'],
+    ['edgemods-example-body-b-1.0.0.zip', 'edgemods-example-body-kit'],
+    ['edgemods-example-extras-1.0.0.zip', 'Codeware'],
+  ]);
+  assert.equal(placed[2].requirement.exact, true);
 });
 
 test('links', () => {

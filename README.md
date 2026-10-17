@@ -12,7 +12,7 @@
 
 The EDGE mod registry for Cyberpunk 2077. Every mod lives in its author's own git repository; EDGEmods lists them and renders each mod's page from what is in the repository: its README, its images, its releases. Nothing is uploaded twice, and the author keeps everything.
 
-The EDGEmods extension for VS Code browses the registry and installs mods through [REDdeck](https://github.com/Edgemodders/REDdeck). It also publishes a [REDcode](https://github.com/Edgemodders/REDcode) project as a mod in one guided step: the manifest, the page, the images, the repository and the release. Its MCP server lets REDagent or Claude do the same when you say "find me a mod that adds more cars" or "publish my mod".
+The EDGEmods extension for VS Code browses the registry and installs mods through [EDGEdeck](https://github.com/Edgemodders/EDGEdeck). It also publishes a [REDcode](https://github.com/Edgemodders/REDcode) project as a mod in one guided step: the manifest, the page, the images, the repository and the release. Its MCP server lets REDagent or Claude do the same when you say "find me a mod that adds more cars" or "publish my mod".
 
 **[Read the docs](https://edgemodders.github.io/EDGEmods/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 

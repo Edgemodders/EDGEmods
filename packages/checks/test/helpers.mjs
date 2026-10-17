@@ -90,7 +90,12 @@ export function goodWorld() {
     registryFiles: new Map([
       ['registry/README.md', Buffer.from('# registry')],
       ['registry/someone-else/better-car-radio.json', Buffer.from(JSON.stringify({ schemaVersion: 1, repo: 'https://github.com/someone-else/radio', repoId: 77, ownerId: 2002 }))],
+      // The example's requirements on EDGEmods: Core (1.2.0 or newer) for the whole mod, Body Kit (exactly 2.0.0) for Body B.
+      ['registry/core-dev/edgemods-example-core.json', Buffer.from(JSON.stringify({ schemaVersion: 1, repo: 'https://github.com/core-dev/core', repoId: 88, ownerId: 3003 }))],
+      ['registry/kit-dev/edgemods-example-body-kit.json', Buffer.from(JSON.stringify({ schemaVersion: 1, repo: 'https://github.com/kit-dev/body-kit', repoId: 99, ownerId: 4004 }))],
     ]),
+    /** Other mods' repositories: full name -> their release tags. */
+    others: new Map([['core-dev/core', ['v1.0.0', 'v1.2.0', 'v1.3.0']], ['kit-dev/body-kit', ['v2.0.0']]]),
     repo: {
       id: 5005, name: 'example-mod', fullName: 'octo-modder/example-mod', owner: { ...MODDER },
       private: false, archived: false, disabled: false, fork: false, defaultBranch: 'main', htmlUrl: 'https://github.com/octo-modder/example-mod',
@@ -123,6 +128,7 @@ export function fakeGitHub(w) {
       return { files: [...(files ?? new Map())].map(([path, b]) => ({ path, size: b.length })), truncated: false };
     },
     async releaseByTag(fullName, tag) {
+      if (w.others.has(fullName)) return w.others.get(fullName).includes(tag) ? { tag, draft: false, prerelease: false, assets: [] } : undefined;
       return w.release && w.release.tag === tag ? { ...w.release, assets: w.release.assets.map(({ bytes, ...a }) => a) } : undefined;
     },
     async downloadAsset(fullName, assetId, destination) {

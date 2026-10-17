@@ -208,7 +208,7 @@
       return `<header class="hero wrap">
           <div class="eyebrow">The EDGE mod registry for Cyberpunk 2077</div>
           <h1>Mods, straight from <span>git</span></h1>
-          <p class="lede">Find, install and share mods. Every mod lives in its author's own repository: EDGEmods checks it, lists it, and installs it through REDdeck in one click.</p>
+          <p class="lede">Find, install and share mods. Every mod lives in its author's own repository: EDGEmods checks it, lists it, and installs it through EDGEdeck in one click.</p>
           <div class="cta"><a class="btn go" href="browse.html">Browse mods</a><a class="btn" href="publish.html">Publish a mod</a></div>
           <div class="stats"><span><b>${mods.length}</b>mods</span><span><b>${modders}</b>modders</span><span><b>${num(downloads)}</b>downloads</span></div>
         </header>
@@ -303,12 +303,12 @@
         <div class="tabpanel" data-panel="versions" hidden><div class="versions">${m.releases.map((r, i) => `
           <div class="panel version"><div class="v">${esc(r.version)}<small>${esc(date(r.date))}${i === 0 ? ' · latest' : ''}</small></div>
             <ul>${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
-            <div>${who ? `<button class="btn sm" data-toast="Installs ${esc(r.version)} through REDdeck, which keeps versions side by side.">${i === 0 ? 'Install' : 'Install this version'}</button>` : '<span class="dim mono" style="font-size:11px">Sign in to install</span>'}</div></div>`).join('')}</div></div>
-        <div class="tabpanel" data-panel="needs" hidden><p class="dim">Install these too. REDdeck installs EDGEmods requirements with the mod; links outside EDGEmods are not checked by EDGEmods.</p>
+            <div>${who ? `<button class="btn sm" data-toast="Installs ${esc(r.version)} through EDGEdeck, which keeps versions side by side.">${i === 0 ? 'Install' : 'Install this version'}</button>` : '<span class="dim mono" style="font-size:11px">Sign in to install</span>'}</div></div>`).join('')}</div></div>
+        <div class="tabpanel" data-panel="needs" hidden><p class="dim">Installing in VS Code brings the EDGEmods requirements along, and theirs in turn: EDGEmods works out the chain, and EDGEdeck installs each mod into your loadout. Get the links outside EDGEmods yourself; EDGEmods does not check them.</p>
           <div class="reqs">${m.requirements.map((r) => {
             if (r.mod) {
               const dep = byId(r.mod);
-              return dep ? `<a class="panel req" href="mod.html?id=${esc(dep.id)}" style="text-decoration:none;color:inherit"><span class="thumb">${art(dep)}</span><span><b>${esc(dep.name)}</b><small>On EDGEmods${r.minVersion ? ` · ${esc(r.minVersion)} or later` : ''}</small></span></a>` : '';
+              return dep ? `<a class="panel req" href="mod.html?id=${esc(dep.id)}" style="text-decoration:none;color:inherit"><span class="thumb">${art(dep)}</span><span><b>${esc(dep.name)}</b><small>On EDGEmods · ${esc(needs(r))}</small></span></a>` : '';
             }
             return `<a class="panel req" href="${esc(r.url)}" style="text-decoration:none;color:inherit"><span class="ext">External</span><span><b>${esc(r.name)}</b><small>${esc(new URL(r.url).hostname)} · not checked by EDGEmods</small></span></a>`;
           }).join('')}</div></div>
@@ -422,7 +422,7 @@
       <h2>${esc(m.name)}</h2><p>${esc(m.summary)}</p>
       <p>This text comes from the mod's <code>README.md</code>, rendered and cleaned by EDGEmods. Authors write it in the EDGEmods publishing form, or in their repository.</p>
       <h2>Features</h2><ul><li>Works with game ${esc(m.game)}.</li><li>Tags: ${m.tags.map(esc).join(', ')}.</li><li>Settings in the game's mod menu.</li></ul>
-      <h2>Installing</h2><ol><li>Install the requirements.</li><li>Install in VS Code, or download the files and add them to REDdeck.</li>${m.files.some((f) => f.role === 'choose-one') ? '<li>Choose one file from each group in the Files tab.</li>' : ''}</ol>
+      <h2>Installing</h2><ol><li>Install the requirements.</li><li>Install in VS Code, or download the files and add them to EDGEdeck.</li>${m.files.some((f) => f.role === 'choose-one') ? '<li>Choose one file from each group in the Files tab.</li>' : ''}</ol>
       <h2>Credits</h2><p>Thanks to the Cyberpunk 2077 modding community.</p></div>`;
   }
 
@@ -448,7 +448,22 @@
       ? `<input type="checkbox" checked disabled aria-label="${esc(f.title)} (required)">`
       : `<input type="${kind}" ${group ? `name="g-${esc(group)}"` : ''} ${checked ? 'checked' : ''} data-size="${f.size}" aria-label="${esc(f.title)}">`;
     return `<div class="file">${input}<div><div class="t">${esc(f.title)}</div><div class="n">${esc(f.name)}</div></div>
-      <div class="sz">${bytes(f.size)}${who ? `<br><a href="#" data-toast="Counted as a download, then sent to the file on GitHub.">Download</a>` : ''}</div>${f.note ? `<p class="note">${esc(f.note)}</p>` : ''}</div>`;
+      <div class="sz">${bytes(f.size)}${who ? `<br><a href="#" data-toast="Counted as a download, then sent to the file on GitHub.">Download</a>` : ''}</div>${f.note ? `<p class="note">${esc(f.note)}</p>` : ''}${fileNeeds(f)}</div>`;
+  }
+
+  /** A requirement's version in words: "1.2.0 or newer", or "exactly 1.4.0" when pinned. */
+  function needs(r) {
+    return r.exact ? `exactly ${r.version}` : `${r.version} or newer`;
+  }
+
+  /** What one file needs on top of the whole mod, shown under the file. */
+  function fileNeeds(f) {
+    if (!f.requirements?.length) return '';
+    return `<p class="note">This file needs ${f.requirements.map((r) => {
+      if (!r.mod) return `<a href="${esc(r.url)}">${esc(r.name)}</a> (outside EDGEmods)`;
+      const dep = byId(r.mod);
+      return `<a href="mod.html?id=${esc(r.mod)}">${esc(dep?.name ?? r.mod)}</a> ${esc(needs(r))}`;
+    }).join(', ')}.</p>`;
   }
 
   // ---- browse: search, facets, sort, all in the address bar ----
@@ -592,7 +607,7 @@
     }
     if ('install' in d) {
       const m = byIdFromPage();
-      return toast(`Opens VS Code: vscode://edgemodders.edgemods/install?mod=${m.id}&version=${m.version}. EDGEmods downloads the files and REDdeck installs them.`);
+      return toast(`Opens VS Code: vscode://edgemodders.edgemods/install?mod=${m.id}&version=${m.version}. EDGEmods works out the requirements, downloads every file and hands each mod to EDGEdeck for your loadout.`);
     }
     if (d.tabOpen) { pages._showTab?.(d.tabOpen); $('.tabs')?.scrollIntoView({ behavior: 'smooth' }); return; }
     if (d.shot) {

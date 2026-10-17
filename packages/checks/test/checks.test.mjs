@@ -35,7 +35,7 @@ function setManifest(w, change, refs = ['main', 'v1.0.0']) {
 test('a correct publish pull request passes every step', async () => {
   const result = await run(goodWorld());
   assert.equal(result.ok, true, JSON.stringify(result.steps.filter((s) => s.issues.length), null, 2));
-  assert.deepEqual(result.steps.map((s) => s.status), ['pass', 'pass', 'pass', 'pass', 'pass', 'pass']);
+  assert.deepEqual(result.steps.map((s) => s.status), ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass']);
   assert.deepEqual(result.mod, {
     id: 'edgemods-example', name: 'EDGEmods Example', version: '1.0.0', owner: 'octo-modder',
     repo: 'https://github.com/octo-modder/example-mod', repoId: 5005,
@@ -113,6 +113,18 @@ test('edgemods.json in the repository', async () => {
   await expectFail((w) => setManifest(w, (m) => { m.version = 'v1'; }), 'metadata', 'starts with "v"');
   await expectFail((w) => setManifest(w, (m) => { m.id = 'other-id'; }), 'metadata', 'must match');
   await expectFail((w) => setManifest(w, (m) => { m.author.github = 'somebody'; }), 'metadata', 'belongs to octo-modder');
+});
+
+test('requirements on EDGEmods: on the registry, at a release that exists', async () => {
+  const ok = await run(goodWorld());
+  assert.deepEqual(ok.steps.find((s) => s.id === 'requirements').notes, [
+    'The mod needs edgemods-example-core 1.2.0 or newer.',
+    '"edgemods-example-body-b-1.0.0.zip" needs edgemods-example-body-kit exactly 2.0.0.',
+    '2 link(s) outside EDGEmods, not checked.',
+  ]);
+  await expectFail((w) => setManifest(w, (m) => { m.requirements[1].mod = 'no-such-mod'; }), 'requirements', 'no mod with that id');
+  await expectFail((w) => setManifest(w, (m) => { m.requirements[1].version = '1.1.0'; }), 'requirements', 'has no release 1.1.0');
+  await expectFail((w) => setManifest(w, (m) => { m.files[2].requirements[0].version = '2.1.0'; }), 'requirements', '"edgemods-example-body-b-1.0.0.zip" needs');
 });
 
 test('the release', async () => {

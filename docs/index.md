@@ -10,7 +10,7 @@ EDGEmods is the EDGE mod registry for Cyberpunk 2077: a website that lists mods 
 | [Registry](registry.html) | The registry files, the merge checks step by step, the workflow's safety rules, the owner's GitHub setup |
 | [R0 research](research.html) | Prior art, GitHub mechanics and limits, legal sources, TheLostRealms' Auth0 sign-in, the house style tokens |
 | [Dev setup](dev-setup.html) | What a PC needs to work on EDGEmods |
-| [REDdeck docs](https://edgemodders.github.io/REDdeck/) | The mod manager that installs what EDGEmods finds |
+| [EDGEdeck docs](https://edgemodders.github.io/EDGEdeck/) | The mod manager that installs what EDGEmods finds |
 | [REDcode docs](https://edgemodders.github.io/REDcode/) | The editor whose projects EDGEmods publishes |
 
 ## Roadmap status

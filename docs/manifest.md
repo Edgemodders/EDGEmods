@@ -51,15 +51,20 @@ Each release's tag points at a commit whose `edgemods.json` describes that relea
 | `group` | For `choose-one` files only: the group's name, such as "Body". Files in a group override the same thing, so the player picks one. A group has at least two files |
 | `title` | A short label, up to 80 characters |
 | `note` | Free-form explanation, up to 500 characters |
+| `requirements` | What this file needs on top of the whole mod's requirements, in the same form as below. They count only when the file is installed, such as a framework that one choose-one variant needs |
 
 At least one file is `required`, or there is a `choose-one` group: a mod made only of optional files cannot be installed.
 
 ### Requirements
 
+Requirements sit on the whole mod (`requirements` at the top) or on one file (`files[].requirements`). A mod listed for the whole mod is not listed again on a file.
+
 | Form | Fields | Meaning |
 |---|---|---|
-| A mod on EDGEmods | `mod` (its id), `minVersion`, `note` | Picked from a search box in the publishing form |
-| Anything else | `name`, `url` (https), `note` | Another mod site, a file host, a framework's page. Not scanned by EDGEmods |
+| A mod on EDGEmods | `mod` (its id), `version`, `exact`, `note` | Picked in the publishing form: type to search EDGEmods, pick the mod, then pick one of its releases. `version` is that release (`1.2.0` means the tag `v1.2.0`); newer releases are fine too, unless `exact` is `true`, which pins it. The merge checks confirm the mod is on EDGEmods and the release exists |
+| Anything else | `name`, `url` (https), `note` | Another mod site, a file host, a framework's page. Not scanned, and no version: the modder keeps the link right |
+
+Installing resolves the chain: the EDGEmods server reads each required mod's `edgemods.json` at the chosen release, and its requirements in turn, and gives the extension a plan; see [the design](design.html#installing-a-mod-and-its-requirements).
 
 ## The checks
 
@@ -93,10 +98,14 @@ The complete example is [`examples/example-mod/edgemods.json`](https://github.co
   "files": [
     { "name": "edgemods-example-1.0.0.zip", "role": "required", "title": "Main file" },
     { "name": "edgemods-example-body-a-1.0.0.zip", "role": "choose-one", "group": "Body", "title": "Body A" },
-    { "name": "edgemods-example-body-b-1.0.0.zip", "role": "choose-one", "group": "Body", "title": "Body B" }
+    {
+      "name": "edgemods-example-body-b-1.0.0.zip", "role": "choose-one", "group": "Body", "title": "Body B",
+      "requirements": [{ "mod": "edgemods-example-body-kit", "version": "2.0.0", "exact": true }]
+    }
   ],
   "requirements": [
-    { "name": "ArchiveXL", "url": "https://www.nexusmods.com/cyberpunk2077/mods/4198" }
+    { "name": "ArchiveXL", "url": "https://www.nexusmods.com/cyberpunk2077/mods/4198" },
+    { "mod": "edgemods-example-core", "version": "1.2.0" }
   ]
 }
 ```

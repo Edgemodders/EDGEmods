@@ -178,8 +178,9 @@ export function validateManifest(value: unknown): ValidationResult {
   if (m.page !== undefined) checkMarkdownPath(c, m.page, 'page', 'The mod page file');
   if (m.changelog !== undefined) checkMarkdownPath(c, m.changelog, 'changelog', 'The changelog file');
 
-  if (c.required(m, 'files', '', 'The list of release files')) checkFiles(c, m.files);
-  if (m.requirements !== undefined) checkRequirements(c, m.requirements, typeof m.id === 'string' ? m.id : undefined);
+  const ownId = typeof m.id === 'string' ? m.id : undefined;
+  if (m.requirements !== undefined) checkRequirements(c, m.requirements, 'requirements', 'Requirement', ownId);
+  if (c.required(m, 'files', '', 'The list of release files')) checkFiles(c, m.files, ownId, wholeModIds(m.requirements));
   if (m.links !== undefined) checkLinks(c, m.links);
 
   return result(c, value);
@@ -292,7 +293,14 @@ function checkMarkdownPath(c: Checker, value: unknown, path: string, what: strin
   else if (!MARKDOWN_PATH_PATTERN.test(p)) c.error(path, `${what} "${p}" must be a .md file in the repository, such as "README.md".`);
 }
 
-function checkFiles(c: Checker, value: unknown): void {
+/** The EDGEmods mods the whole mod requires, so a file does not list them again. */
+function wholeModIds(value: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (Array.isArray(value)) for (const r of value) if (r && typeof r === 'object' && typeof r.mod === 'string') ids.add(r.mod);
+  return ids;
+}
+
+function checkFiles(c: Checker, value: unknown, ownId: string | undefined, wholeMod: Set<string>): void {
   const list = c.array(value, 'files', 'The list of release files');
   if (!list) return;
   if (list.length < LIMITS.files.min) {
@@ -310,7 +318,7 @@ function checkFiles(c: Checker, value: unknown): void {
     const label = `File ${i + 1}`;
     const f = c.object(item, path, label);
     if (!f) return;
-    c.unknownFields(f, ['name', 'role', 'group', 'title', 'note'], path);
+    c.unknownFields(f, ['name', 'role', 'group', 'title', 'note', 'requirements'], path);
 
     if (c.required(f, 'name', path, `${label}'s name`)) {
       const name = c.text(f.name, `${path}.name`, `${label}'s name`, LIMITS.fileName.max);
@@ -344,6 +352,7 @@ function checkFiles(c: Checker, value: unknown): void {
 
     if (f.title !== undefined) c.text(f.title, `${path}.title`, `${label}'s title`, LIMITS.fileTitle.max);
     if (f.note !== undefined) c.text(f.note, `${path}.note`, `${label}'s note`, LIMITS.fileNote.max);
+    if (f.requirements !== undefined) checkRequirements(c, f.requirements, `${path}.requirements`, `${label}'s requirement`, ownId, wholeMod);
   });
 
   for (const [group, members] of groups) {
@@ -356,14 +365,19 @@ function checkFiles(c: Checker, value: unknown): void {
   }
 }
 
-function checkRequirements(c: Checker, value: unknown, ownId: string | undefined): void {
-  const list = c.array(value, 'requirements', 'The requirements');
+/**
+ * The whole mod's requirements, or one file's (with `wholeMod`, the mods the whole mod already requires). An
+ * EDGEmods mod is named with the release the modder picked; "exact" pins it, otherwise newer releases do too.
+ */
+function checkRequirements(c: Checker, value: unknown, at: string, labelBase: string, ownId: string | undefined, wholeMod?: Set<string>): void {
+  const what = wholeMod ? `${labelBase}s` : 'The requirements';
+  const list = c.array(value, at, what);
   if (!list) return;
-  if (list.length > LIMITS.requirements.max) c.error('requirements', `There are ${list.length} requirements; the limit is ${LIMITS.requirements.max}.`);
+  if (list.length > LIMITS.requirements.max) c.error(at, `There are ${list.length} requirements; the limit is ${LIMITS.requirements.max}.`);
   const seen = new Set<string>();
   list.forEach((item, i) => {
-    const path = `requirements[${i}]`;
-    const label = `Requirement ${i + 1}`;
+    const path = `${at}[${i}]`;
+    const label = `${labelBase} ${i + 1}`;
     const r = c.object(item, path, label);
     if (!r) return;
     const hasMod = r.mod !== undefined;
@@ -373,17 +387,21 @@ function checkRequirements(c: Checker, value: unknown, ownId: string | undefined
       return;
     }
     if (hasMod) {
-      c.unknownFields(r, ['mod', 'minVersion', 'note'], path);
+      c.unknownFields(r, ['mod', 'version', 'exact', 'note'], path);
       const id = c.text(r.mod, `${path}.mod`, `${label}'s mod id`, LIMITS.id.max, LIMITS.id.min);
       if (id !== undefined) {
         if (!ID_PATTERN.test(id)) c.error(`${path}.mod`, `"${id}" is not an EDGEmods mod id. Pick the mod from the search box, or use "name" and "url" for a mod elsewhere.`);
         if (id === ownId) c.error(`${path}.mod`, 'The mod lists itself as a requirement.');
         if (seen.has(`mod:${id}`)) c.error(`${path}.mod`, `The mod "${id}" is listed twice.`);
+        else if (wholeMod?.has(id)) c.error(`${path}.mod`, `The mod "${id}" is already a requirement of the whole mod, so this file needs it anyway. Remove it here.`);
         seen.add(`mod:${id}`);
       }
-      if (r.minVersion !== undefined) {
-        const v = c.text(r.minVersion, `${path}.minVersion`, `${label}'s minimum version`, 64);
-        if (v !== undefined) checkVersion(c, v, `${path}.minVersion`, `${label}'s minimum version`);
+      if (c.required(r, 'version', path, `${label}'s version`)) {
+        const v = c.text(r.version, `${path}.version`, `${label}'s version`, 64);
+        if (v !== undefined) checkVersion(c, v, `${path}.version`, `${label}'s version`);
+      }
+      if (r.exact !== undefined && typeof r.exact !== 'boolean') {
+        c.error(`${path}.exact`, `"exact" must be true or false, without quotes, not ${describe(r.exact)}.`);
       }
     } else {
       c.unknownFields(r, ['name', 'url', 'note'], path);

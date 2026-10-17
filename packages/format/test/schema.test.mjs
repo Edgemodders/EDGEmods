@@ -33,6 +33,9 @@ const broken = {
   'choose-one without group': (m) => { delete m.files[1].group; },
   'group on a required file': (m) => { m.files[0].group = 'x'; },
   'requirement with both forms': (m) => { m.requirements[0].mod = 'x-y-z'; },
+  'mod requirement without a version': (m) => { delete m.requirements[1].version; },
+  'old minVersion field': (m) => { m.requirements[1].minVersion = '1.0.0'; },
+  "bad version on a file's requirement": (m) => { m.files[2].requirements[0].version = '2'; },
   'http link': (m) => { m.links.homepage = 'http://edgemods.ai'; },
   'long summary': (m) => { m.summary = 'x'.repeat(201); },
 };

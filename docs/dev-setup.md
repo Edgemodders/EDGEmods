@@ -11,7 +11,7 @@ What a Windows PC needs to work on EDGEmods. The shared tools are the same as in
 | nvm for Windows and Node.js | Node 24.11.1, npm 11.14.1 (22.13 or later is the floor: the server uses `node:sqlite`) | The packages, and later the extension, the indexer and the website, are TypeScript, as the rest of the ecosystem | `winget install --id CoreyButler.NVMforWindows -e`, then `nvm install 24` and `nvm use 24` |
 | Python | 3.10 or later | Brand tooling | |
 | Chrome or Edge | any | Renders the brand images | Already present on Windows |
-| REDcode and REDdeck | latest | Publishing reads a REDcode project; installing goes through REDdeck | From the Marketplace or Open VSX |
+| REDcode and EDGEdeck | latest | Publishing reads a REDcode project; installing goes through EDGEdeck | From the Marketplace or Open VSX |
 
 ## 2. Repository and GitHub
 

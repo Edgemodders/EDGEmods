@@ -64,12 +64,20 @@ export interface ModFile {
   title?: string;
   /** Free-form explanation of the file. */
   note?: string;
+  /** What this file needs on top of the whole mod's requirements, when it is installed. */
+  requirements?: Requirement[];
 }
 
-/** Another mod on EDGEmods, by its id. */
+/**
+ * Another mod on EDGEmods, by its id, at the release the modder picked in the publishing form. Installing resolves
+ * the chain: the EDGEmods server reads each required mod's edgemods.json at the chosen release, and so on down.
+ */
 export interface ModRequirement {
   mod: string;
-  minVersion?: string;
+  /** The release picked: MAJOR.MINOR.PATCH, released as the tag v<version>. This version or a newer one, unless exact. */
+  version: string;
+  /** Only this version will do. */
+  exact?: boolean;
   note?: string;
 }
 
@@ -114,4 +122,19 @@ export interface Manifest {
 
 export function isModRequirement(r: Requirement): r is ModRequirement {
   return typeof (r as ModRequirement).mod === 'string';
+}
+
+/** A requirement with where it was declared: the whole mod, or one file (by its name). */
+export interface PlacedRequirement {
+  requirement: Requirement;
+  /** The release file that needs it; undefined when the whole mod does. */
+  file?: string;
+}
+
+/** Every requirement in the manifest: the whole mod's first, then each file's. */
+export function allRequirements(m: Pick<Manifest, 'requirements' | 'files'>): PlacedRequirement[] {
+  return [
+    ...(m.requirements ?? []).map((requirement) => ({ requirement })),
+    ...m.files.flatMap((f) => (f.requirements ?? []).map((requirement) => ({ requirement, file: f.name }))),
+  ];
 }
