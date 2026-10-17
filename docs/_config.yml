@@ -27,6 +27,8 @@ nav:
     url: /design.html
   - title: Format
     url: /manifest.html
+  - title: Registry
+    url: /registry.html
   - title: Research
     url: /research.html
   - title: Dev setup

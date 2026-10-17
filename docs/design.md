@@ -55,14 +55,14 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 - EDGEmods does not otherwise police mods. Each repository is its modder's responsibility, and CD Projekt RED or anyone else takes concerns to that repository.
 - Requirements that are external links (another mod site, a file host) are not scanned for now.
 
-**Proposed:**
+**Proposed** (built in R2 as described in [the registry](registry.html), still for the owner's review):
 
 | Topic | Proposal | Why |
 |---|---|---|
 | Layout | One small file per mod, `registry/<github-user>/<mod>.json`, with the repository URL, the owner and GitHub's numeric repository id | Pull requests that all edit one list conflict, and only the first can merge automatically. The numeric id survives renames |
 | Trigger | `pull_request_target`, which never checks out or runs the pull request's code and reads everything from the mod repository as data | Plain `pull_request` workflows wait for a maintainer's approval for first-time contributors, which every new modder is |
 | Structure checks | Exactly one added file, in the right folder; the pull request's author owns the mod repository; the metadata matches the schema; the README exists; a release with a version tag exists; sizes are within limits; the name is not too close to an existing mod's | |
-| Binary and malware step | List each release file's contents without extracting anything to run; mark `.dll`, `.exe`, `.asi` and scripts so the mod page says so in plain words; record hashes; scan with VirusTotal (its terms for this use need checking), ClamAV on the owner's machine, or both | RED4ext plugins run inside the game with the player's permissions |
+| Binary and malware step | List each release file's contents without extracting anything to run; mark `.dll`, `.exe`, `.asi` and scripts so the mod page says so in plain words; record hashes; scan with ClamAV on the CI runner (built); VirusTotal could be added once its terms for this use are read | RED4ext plugins run inside the game with the player's permissions |
 | Merging | A small EDGEmods GitHub App merges, and reads repositories for the indexer | A merge made with the workflow's own token would not start the rebuild on `main`; an App also has higher API limits |
 | Agent review | Returns a fixed, structured answer only: pass or fail, plus tags from an agreed list. It can block a mod or add tags, never approve one by itself. No write access, no secrets | Mod READMEs are untrusted and could try to instruct it |
 | Updates | No pull request for a new version. The indexer reads each mod's latest release on a schedule and runs the same checks on anything new. A failing release hides the mod until it is fixed; the registry entry stays | The website must see new releases, which do not touch `main` |

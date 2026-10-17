@@ -41,6 +41,7 @@ npm run schema --workspace packages/format   # regenerate the JSON schema after 
 | Package | Dev dependencies (installed 2026-10-17) |
 |---|---|
 | `packages/format` | `typescript` 5.9.3, `@types/node` 24.19.2, `ajv` 8.20.0 (tests only: checks the generated schema). No runtime dependencies |
+| `packages/checks` | `typescript`, `@types/node` as above. Runtime: only `packages/format`. Uses the `clamscan` (ClamAV) and `7z` (p7zip) tools when present; the registry workflow installs them on the runner. The two `.7z` tests are skipped where `7z` is missing |
 
 `.github/workflows/test.yml` runs the same steps on every push and pull request, on Node 24.
 
