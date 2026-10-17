@@ -80,6 +80,16 @@ test('the repository: exists, public, owned by the author, not already listed', 
   }, 'repository', 'already on EDGEmods as "old-name"');
 });
 
+test('advice about edgemods.json is given once, not again under the page and images', async () => {
+  const w = goodWorld();
+  setManifest(w, (m) => delete m.images.gallery);
+  const result = await run(w);
+  assert.equal(result.ok, true);
+  const gallery = (id) => result.steps.find((s) => s.id === id).issues.filter((i) => i.path === 'images.gallery');
+  assert.equal(gallery('metadata').length, 1);
+  assert.equal(gallery('files').length, 0);
+});
+
 test('a fork and a near-identical id are advice, not failures', async () => {
   const w = goodWorld();
   w.repo.fork = true;

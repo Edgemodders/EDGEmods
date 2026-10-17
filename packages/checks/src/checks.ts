@@ -77,7 +77,11 @@ interface State {
   manifest?: Manifest;
   release?: Release;
   downloads: DownloadReport[];
+  /** edgemods.json issues the metadata step reported, so the files step does not repeat them. */
+  reported: Set<string>;
 }
+
+const issueKey = (i: Issue): string => `${i.path}\n${i.message}`;
 
 class Step {
   readonly issues: Issue[] = [];
@@ -106,7 +110,7 @@ const STEPS: [string, string, StepFn][] = [
 ];
 
 export async function runChecks(options: CheckOptions): Promise<CheckResult> {
-  const state: State = { downloads: [] };
+  const state: State = { downloads: [], reported: new Set() };
   const steps: StepResult[] = [];
   let stopped = false;
   for (const [id, title, fn] of STEPS) {
@@ -221,7 +225,10 @@ async function checkMetadata(s: Step, state: State, o: CheckOptions): Promise<vo
   const bytes = await o.github.file(repo.fullName, repo.defaultBranch, MANIFEST_FILE);
   if (!bytes) return s.fail(`There is no ${MANIFEST_FILE} at the top of ${repo.fullName} on its ${repo.defaultBranch} branch. The EDGEmods publishing form writes it.`);
   const parsed = parseManifest(new TextDecoder().decode(bytes));
-  for (const i of parsed.issues) (i.level === 'error' ? s.fail : s.warn).call(s, i.message, i.path);
+  for (const i of parsed.issues) {
+    (i.level === 'error' ? s.fail : s.warn).call(s, i.message, i.path);
+    state.reported.add(issueKey(i));
+  }
   const m = parsed.manifest;
   if (!m) return;
   state.manifest = m;
@@ -258,6 +265,7 @@ async function checkFiles(s: Step, state: State, o: CheckOptions): Promise<void>
   const result = await checkModFiles(githubFiles(o.github, repo.fullName, release.tag));
   for (const i of result.issues) {
     // edgemods.json was checked already; repeat only what is about the files themselves.
+    if (state.reported.has(issueKey(i))) continue;
     if (i.path.startsWith('images') || i.path === 'page' || i.path === 'changelog' || i.path === '') (i.level === 'error' ? s.fail : s.warn).call(s, i.message, i.path);
   }
 }

@@ -6,6 +6,9 @@ name: Test
 on:
   push:
     branches: [main]
+    # A merged publish pull request changes only registry/; nothing here to test.
+    paths-ignore:
+      - 'registry/**'
   pull_request:
     branches: [main]
     # Publish pull requests only add a registry file; registry.yml checks those.

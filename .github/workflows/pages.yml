@@ -8,6 +8,9 @@ name: Docs site
 on:
   push:
     branches: [main]
+    # A merged publish pull request changes only registry/, which is not part of the docs.
+    paths-ignore:
+      - 'registry/**'
   workflow_dispatch:
 
 permissions:
