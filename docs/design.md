@@ -143,7 +143,7 @@ One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in
 
 | Topic | Proposal |
 |---|---|
-| Downloads | Every download, from the website or the extension, goes through one endpoint, like `/download/<mod>/<version>/<file>`, which counts it and redirects to the GitHub file. Repeats from the same account are counted once per file per day |
+| Downloads | Every download, from the website or the extension, goes through one endpoint, like `/download/<mod>/<version>/<file>`, which counts it and serves it at the account's speed (see "Subscriptions and download speed"). Repeats from the same account are counted once per file per day |
 | Images | The website serves cached copies of each mod's images and rewrites links to the repository on anonymous pages. Otherwise `raw.githubusercontent.com` addresses would show the origin. It also keeps the pages fast and sanitized |
 | Sanitizing | READMEs are untrusted. Sanitize the HTML; show only the mod's own images |
 | Search | In SQLite, with full-text search (FTS5, if `node:sqlite` includes it: unverified) and facet counts |
@@ -182,6 +182,23 @@ A GitHub App cannot be installed silently: GitHub has no API that creates an ins
 | Moderation | The modder moderates Discussions and Issues; the extension and website can show them the tools GitHub's API offers (close, lock, hide). EDGEmods' own comments are moderated by its admins and through reports | |
 | The registry pull request | Publishing needs a pull request from the modder's account, so the extension silently keeps a fork of the EDGEmods repository in their account and opens the pull request from it. The fork is the one GitHub thing a curious modder might notice | GitHub only lets people without write access propose changes from a fork |
 
+## Subscriptions and download speed
+
+**Decided (the owner, 2026-10-18):** the website has a paid subscription, through Stripe. Accounts without one download through a rate-limited endpoint; subscribers get full speed.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| Free downloads | The download endpoint checks the sign-in, counts the download, then answers with nginx's `X-Accel-Redirect` to an internal location and `X-Accel-Limit-Rate` with the free speed. nginx fetches the file from GitHub, keeps it in its disk cache, and streams it to the player at that speed. The service never handles the file's bytes | A redirect cannot be slowed down, so free downloads must pass through the server; nginx does the streaming and the throttling, which it is built for |
+| Subscribers' downloads | The same endpoint answers with a redirect to the GitHub release file. GitHub serves it at full speed from its own network | Full speed at no bandwidth cost to EDGEmods. Subscribers are signed in, so seeing GitHub's address breaks no soft gate |
+| The free speed | Set in the server's settings, so it can change without a release. The number is the owner's choice | |
+| In the extension | Installs use the same endpoint (the install plan's download links), so the same speed applies, and the progress bar says which. A free account's install suggests the subscription once, never during a download | One rule everywhere |
+| Bandwidth cost | Free downloads leave the AWS server, which AWS charges for beyond a monthly free allowance (about 100 GB, then roughly $0.09 per GB: unverified, check against the bill). 10,000 free downloads of 50 MB is 500 GB a month. Subscribers cost nothing in bandwidth. The admin page shows the month's free bytes served | The cost grows with free use, not paid use, so it must be watched |
+| Stripe | Stripe Checkout to subscribe and Stripe's customer portal to change or cancel; no card details reach EDGEmods. A webhook (`/api/v1/stripe/webhook`, its signature checked) records each account's subscription state in `site.db`. Each Stripe event is claimed once by its id before it is applied, as TheLostRealms' Portal does with its keys. Payment failures keep full speed until Stripe gives up, then fall back to free | Stripe holds the money and the cards; EDGEmods only knows "subscribed until" |
+| What stays free | Every mod stays downloadable and installable for free, from the website and the extension. The subscription buys speed, not access. The files also stay public on GitHub, where anyone can download them at full speed; that is a soft gate, like sign-in for downloads | CD Projekt RED's Fan Content Guidelines allow no paywalls on mods (see [R0 research](research.html#legal)); Nexus Mods sells speed the same way for this game |
+| Accounts | A fourth kind of account: Subscriber, a player or modder with an active subscription. The account page shows the state and links to Stripe's portal | |
+
 ## Accounts (Decided)
 
 | Who | Signs in with | Can |
@@ -219,7 +236,7 @@ A modder who signs in with email or Google can browse but does not see their pub
 | Bucket | A new versioned, private, encrypted bucket for EDGEmods. Access through the server's instance role, no keys on disk: a policy statement allowing Put, Get, Delete and List on that bucket, and denying `DeleteObjectVersion` and turning versioning off, as TheLostRealms' `LitestreamReplication` policy does. The owner creates the bucket and the policy | A taken server can disrupt the backup but not destroy it |
 | Install script | `sudo ./deploy/setup-edgemods.sh [--dry-run]`, written fresh to TheLostRealms' conventions (its scripts are Business Source License). Re-runnable: a rerun deploys the current commit and restarts. Preflight (root, systemd, Node 22.13+ for `node:sqlite`, a full checkout); service account `edgemods`; the app copied to `/opt/edgemods`; `/etc/edgemods.env` added from the example if missing and never overwritten; data in `/var/lib/edgemods` through the unit's `StateDirectory`; a hardened `edgemods.service` with `daemon-reload` when it changes; restart and prove `/healthz` answers; stop at the first failure and name it; ports read from the code | Every service on the server is installed and updated alike |
 | Deploy files | `deploy/` holds the script, the units, the env example, the Litestream config and an nginx snippet that a person includes (the live nginx config is never edited) | EDGEmods deploys without any change to TheLostRealms |
-| nginx | The server's nginx is the proxy (the owner, 2026-10-18). The service listens on `127.0.0.1` only; nginx serves `edgemods.ai` over HTTPS and passes requests to it, with `X-Forwarded-For` and `X-Forwarded-Proto` (the service trusts them from the loopback proxy only, for rate limits and download counts). `www.edgemods.ai` redirects to `edgemods.ai`. Request size: nginx's default 1 MB, except the GitHub webhook (25 MB, GitHub's largest delivery) and the index handover (its own larger limit). Downloads are redirects to GitHub, so no mod file passes through nginx | One public door, as for TheLostRealms' services |
+| nginx | The server's nginx is the proxy (the owner, 2026-10-18). The service listens on `127.0.0.1` only; nginx serves `edgemods.ai` over HTTPS and passes requests to it, with `X-Forwarded-For` and `X-Forwarded-Proto` (the service trusts them from the loopback proxy only, for rate limits and download counts). `www.edgemods.ai` redirects to `edgemods.ai`. Request size: nginx's default 1 MB, except the GitHub webhook (25 MB, GitHub's largest delivery) and the index handover (its own larger limit). Free downloads stream through nginx at a limited speed; subscribers' downloads are redirects to GitHub (see "Subscriptions and download speed") | One public door, as for TheLostRealms' services |
 | The domain script | `deploy/add-domain.sh [--dry-run]`, written fresh to TheLostRealms' `add-subdomain.sh` rules: DNS first (the name must already point at this server, or Let's Encrypt's check fails and rate-limits retries); one server block per name, reused if one exists; a new file in `conf.d` only, nothing else in nginx edited; `nginx -t` before every reload, and a block it wrote removed again if the test fails; the certificate from certbot `--nginx` with the HTTP-to-HTTPS redirect; then a check that `https://edgemods.ai/healthz` answers. Re-running after success does nothing | Repeatable, and nothing left broken; TheLostRealms' scripts are Business Source License, so not copied |
 
 ### Runners (Proposed)
@@ -349,6 +366,9 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | Other git hosts | GitHub only for now |
 | Narrower GitHub access | If modders object to granting all their public repositories: an EDGEmods GitHub App installed on selected repositories only. To find out first with a test App: can it create the repository for the modder, and can a new repository join the installation without GitHub's install page? |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
+| The subscription's price and the free speed | The owner's choice |
+| Modders and the subscription | Does part of the subscription go to modders, as Nexus Mods' Donation Points do? Modders should at least be told plainly, when they publish, that EDGEmods sells download speed |
+| Non-commercial licences | Some mods use licences that forbid commercial use (such as CC BY-NC). EDGEmods streams free downloads from its own server and sells faster ones; whether that counts as commercial use of such a mod needs a lawyer's reading before launch. Not legal advice |
 
 ## Sources
 
