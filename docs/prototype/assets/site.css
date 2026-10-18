@@ -96,7 +96,7 @@ section { margin-top: 48px; }
 .sechead a:hover { text-decoration: underline; }
 
 /* hero */
-.hero { position: relative; padding-block: 56px 36px; }
+.hero { position: relative; padding: 56px 32px 36px; }
 .hero::before, .hero::after { content: ""; position: absolute; width: 36px; height: 36px; border: 2px solid var(--yellow); }
 .hero::before { top: 24px; left: -4px; border-right: 0; border-bottom: 0; }
 .hero::after { bottom: 6px; right: -4px; border-left: 0; border-top: 0; }
@@ -288,6 +288,7 @@ footer nav { display: flex; gap: 16px; flex-wrap: wrap; }
 }
 @media (max-width: 640px) {
   body { font-size: 17px; }
+  .hero { padding-inline: 0; }
   .hero::before, .hero::after { display: none; }
   .lede { font-size: 19px; }
   .bar form { order: 5; max-width: none; flex-basis: 100%; }
