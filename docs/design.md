@@ -235,7 +235,9 @@ The owner already runs a self-hosted GitHub runner on an AWS Linux server, to st
 |---|---|
 | Separate from the existing runner | A second runner on the same machine, in its own folder (`/opt/actions-runner-edgemods`), under its own service account, registered to the EDGEmods repository only, with the label `edgemods`. The owner's existing runner is not touched |
 | Setup | `deploy/runner/`: a README and `setup-runner.sh [--dry-run]`, in the style of the server's install script: preflight, download GitHub's runner, register it with a token the owner pastes (never stored), install it as a service, prove it is online. Re-runnable |
-| What it needs | Node 24 and access to the EDGEmods data folder, nothing else; no ClamAV, no 7-Zip, no WolvenKit |
+| Where it runs | The same server as TheLostRealms and EDGEmods for now, likely separated later (the owner, 2026-10-18) |
+| Handing over the index | The rebuild writes a fresh `index.db` in the runner's own folder, then sends it to the EDGEmods service over HTTPS (`POST /api/v1/admin/index`, signed with a shared secret). The service checks it opens and holds the registry's mods, then swaps it in; on any failure it keeps the old one. The same path on one machine or two, so separating the runner later changes nothing |
+| What it needs | Node 24 and network access to the EDGEmods service, nothing else; no access to the service's data folder, no ClamAV, no 7-Zip, no WolvenKit |
 | Workflow rule | A workflow that uses `runs-on: [self-hosted, edgemods]` has no `pull_request` or `pull_request_target` trigger. A test in this repository fails if one does |
 
 
@@ -345,7 +347,6 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | Other git hosts | GitHub only for now |
 | Narrower GitHub access | If modders object to granting all their public repositories: an EDGEmods GitHub App installed on selected repositories only. To find out first with a test App: can it create the repository for the modder, and can a new repository join the installation without GitHub's install page? |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
-| The owner's runner server | Is it the server that runs TheLostRealms and will run EDGEmods? If so, the index rebuild writes the database there directly; if not, it sends the rebuilt `index.db` to the server |
 
 ## Sources
 
