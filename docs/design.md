@@ -147,6 +147,7 @@ One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in
 | Images | The website serves cached copies of each mod's images and rewrites links to the repository on anonymous pages. Otherwise `raw.githubusercontent.com` addresses would show the origin. It also keeps the pages fast and sanitized |
 | Sanitizing | READMEs are untrusted. Sanitize the HTML; show only the mod's own images |
 | Search | In SQLite, with full-text search (FTS5, if `node:sqlite` includes it: unverified) and facet counts |
+| Caching | One cache module with a small interface (get, set with an expiry, delete, delete by prefix), kept in the service's memory at launch. It holds search and facet results (cleared when the index is swapped in), GitHub reads (cleared by the webhook), rendered READMEs and rate-limit counters. Redis (the owner's suggestion, 2026-10-18) replaces the memory store behind the same interface when it pays: when the service runs as more than one process, or the cache must survive restarts. The server runs no Redis today (checked in TheLostRealms' deploy files). Measure first: with one process and the database on local disk, SQLite answers most queries in milliseconds |
 | Look | EDGEweb's `site.css` as the base: cut-corner card panels, yellow for active and primary, cyan for links, uppercase mono labels, dark only. The filter chips follow EDGEdeck's library view |
 
 ## Talking about a mod
