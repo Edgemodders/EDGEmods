@@ -78,6 +78,8 @@ One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in
 | Merging | A small EDGEmods GitHub App merges, and reads repositories for the indexer | A merge made with the workflow's own token would not start the rebuild on `main`; an App also has higher API limits |
 | Agent review | Returns a fixed, structured answer only: pass or fail, plus tags from an agreed list. It can block a mod or add tags, never approve one by itself. No write access, no secrets | Mod READMEs are untrusted and could try to instruct it |
 | Updates | No pull request for a new version. The indexer hears of each new release from the mod repository's webhook (see "Talking about a mod"), with a check on a schedule as well, and runs the same checks on anything new. A failing release hides the mod until it is fixed; the registry entry stays | The website must see new releases, which do not touch `main` |
+| Where an update is checked | The server does not scan. It asks EDGEmods' own workflow to check the release (a `repository_dispatch` event, `release-check`, with the mod and the tag, sent with the App's token). The workflow runs the same steps as the merge checks, downloads and ClamAV included, on a GitHub-hosted runner, and sends the result to the server signed with a shared secret. Until it passes, the website keeps showing the previous release; players never see an unchecked one | One scanner setup for new mods and updates, and strangers' files never touch the server |
+| Scanning in the mod's own build | The shared build workflow also runs ClamAV before it makes a release, as an early warning for the modder. It is not a merge check: the modder controls that workflow | The modder hears first; EDGEmods still checks for itself |
 | Removal | A repository that is deleted or taken down drops off the website on the next pass; the registry file stays as history | |
 
 ## A mod's repository
@@ -218,6 +220,25 @@ A modder who signs in with email or Google can browse but does not see their pub
 | Install script | `sudo ./deploy/setup-edgemods.sh [--dry-run]`, written fresh to TheLostRealms' conventions (its scripts are Business Source License). Re-runnable: a rerun deploys the current commit and restarts. Preflight (root, systemd, Node 22.13+ for `node:sqlite`, a full checkout); service account `edgemods`; the app copied to `/opt/edgemods`; `/etc/edgemods.env` added from the example if missing and never overwritten; data in `/var/lib/edgemods` through the unit's `StateDirectory`; a hardened `edgemods.service` with `daemon-reload` when it changes; restart and prove `/healthz` answers; stop at the first failure and name it; ports read from the code | Every service on the server is installed and updated alike |
 | Deploy files | `deploy/` holds the script, the units, the env example, the Litestream config and an nginx snippet that a person includes (the live nginx config is never edited) | EDGEmods deploys without any change to TheLostRealms |
 
+### Runners (Proposed)
+
+The owner already runs a self-hosted GitHub runner on an AWS Linux server, to stay within GitHub's quotas. Standard GitHub-hosted runners are free and unlimited for public repositories, and EDGEmods and every mod repository are public, so quotas are not the reason to use it here; trust is.
+
+| Job | Runs on | Why |
+|---|---|---|
+| Merge checks (`registry.yml`) and update checks (`release-check`) | GitHub-hosted, `ubuntu-latest` | They download strangers' files. A GitHub-hosted runner is a fresh machine for every job and is thrown away after; a self-hosted one keeps whatever a job leaves behind, which is why GitHub advises against self-hosted runners on public repositories |
+| Mod builds (the shared build workflow) | GitHub-hosted, `windows-latest` | They run in the modders' repositories, which cannot use the owner's runner, and REDbridge is a Windows build |
+| The index rebuild (goal 8) | The owner's runner, label `edgemods` | Started only by trusted events: a push to `main`, a schedule, or by hand; never by a pull request. It needs to reach the server's database |
+| Pack test, App check, docs, tests | GitHub-hosted | Free, and nothing to protect |
+
+| Topic | Proposal |
+|---|---|
+| Separate from the existing runner | A second runner on the same machine, in its own folder (`/opt/actions-runner-edgemods`), under its own service account, registered to the EDGEmods repository only, with the label `edgemods`. The owner's existing runner is not touched |
+| Setup | `deploy/runner/`: a README and `setup-runner.sh [--dry-run]`, in the style of the server's install script: preflight, download GitHub's runner, register it with a token the owner pastes (never stored), install it as a service, prove it is online. Re-runnable |
+| What it needs | Node 24 and access to the EDGEmods data folder, nothing else; no ClamAV, no 7-Zip, no WolvenKit |
+| Workflow rule | A workflow that uses `runs-on: [self-hosted, edgemods]` has no `pull_request` or `pull_request_target` trigger. A test in this repository fails if one does |
+
+
 ## Administration
 
 **Decided:**
@@ -324,6 +345,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | Other git hosts | GitHub only for now |
 | Narrower GitHub access | If modders object to granting all their public repositories: an EDGEmods GitHub App installed on selected repositories only. To find out first with a test App: can it create the repository for the modder, and can a new repository join the installation without GitHub's install page? |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
+| The owner's runner server | Is it the server that runs TheLostRealms and will run EDGEmods? If so, the index rebuild writes the database there directly; if not, it sends the rebuilt `index.db` to the server |
 
 ## Sources
 
