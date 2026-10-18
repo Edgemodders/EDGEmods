@@ -1,0 +1,50 @@
+# Run by hand: does REDbridge pack a mod project on a GitHub runner, without a game folder?
+# The question behind the shared build workflow (docs/design.md, "Packing on GitHub").
+name: Pack test
+
+on:
+  workflow_dispatch:
+    inputs:
+      redbridge:
+        description: REDbridge release tag
+        default: v0.10.0
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Download REDbridge
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.redbridge }}
+        run: |
+          gh release download $env:TAG -R Edgemodders/REDbridge -p "*-win-x64.zip" -D "$env:RUNNER_TEMP\rb"
+          Expand-Archive "$env:RUNNER_TEMP\rb\*.zip" "$env:RUNNER_TEMP\rb\bin"
+      - name: Pack
+        shell: pwsh
+        run: |
+          $t = Measure-Command { node tools/pack-test/pack-test.mjs "$env:RUNNER_TEMP\rb\bin\REDbridge.exe" "$env:RUNNER_TEMP\work" | Out-Host }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Whole step, with the bridge's start: $([int]$t.TotalSeconds) s" | Out-Host
+      - name: Zip
+        shell: pwsh
+        run: |
+          Compress-Archive "$env:RUNNER_TEMP\work\packed\*" "$env:RUNNER_TEMP\edgemods-pack-test-1.0.0.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::OpenRead("$env:RUNNER_TEMP\edgemods-pack-test-1.0.0.zip").Entries | ForEach-Object { "$($_.FullName)  $($_.Length)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edgemods-pack-test
+          path: ${{ runner.temp }}/edgemods-pack-test-1.0.0.zip
+          retention-days: 3
