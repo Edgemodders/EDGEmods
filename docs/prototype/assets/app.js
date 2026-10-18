@@ -17,9 +17,9 @@
   // ---- who is looking ----
   const PERSONAS = {
     visitor: null,
-    player: { key: 'player', name: 'Vee Morales', via: 'Email', github: null, admin: false },
-    modder: { key: 'modder', name: 'Nyx Calloway', via: 'GitHub', github: 'octo-modder', admin: false },
-    admin: { key: 'admin', name: 'EDGEmods admin', via: 'Email', github: null, admin: true },
+    player: { key: 'player', name: 'Vee Morales', via: 'Email', email: 'vee.morales@example.com', github: null, admin: false, since: '2026-03-02' },
+    modder: { key: 'modder', name: 'Nyx Calloway', via: 'GitHub', email: 'nyx@example.com', github: 'octo-modder', admin: false, since: '2025-11-19' },
+    admin: { key: 'admin', name: 'EDGEmods admin', via: 'Email', email: 'admin@example.com', github: null, admin: true, since: '2025-10-01' },
   };
   const ROLE_LABELS = { visitor: 'Visitor', player: 'Player', modder: 'Modder', admin: 'Admin' };
   let role = params.get('as') in PERSONAS ? params.get('as') : store.get('role', 'visitor');
@@ -29,6 +29,12 @@
 
   const likes = new Set(store.get('likes', ['clean-hud', 'neon-rain-weather']));
   const settings = store.get('settings', { adult: false });
+  // The subscription, per persona: free, active, or ending (cancelled, full speed until the period ends).
+  const subs = store.get('subs', { player: 'free', modder: 'active', admin: 'free' });
+  const sub = () => (me() ? subs[role] ?? 'free' : 'free');
+  const setSub = (v) => { subs[role] = v; store.set('subs', subs); };
+  const FREE_SPEED = '2 MB/s';
+  const periodEnd = () => date(new Date(D.NOW + 23 * 86400000).toISOString());
 
   // ---- formatting ----
   const num = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
@@ -108,9 +114,11 @@
     const account = who
       ? `<button class="who" aria-haspopup="true" aria-expanded="false" id="whoBtn"><span class="avatar">${esc(who.name[0])}</span>${esc(who.name.split(' ')[0])}</button>
          <div class="menu" id="whoMenu" role="menu">
-           <div class="head"><b>${esc(who.name)}</b>Signed in with ${esc(who.via)}${who.github ? ` · ${esc(who.github)}` : ''}</div>
+           <div class="head"><b>${esc(who.name)}</b>Signed in with ${esc(who.via)}${who.github ? ` · ${esc(who.github)}` : ''}<br>${sub() === 'free' ? 'Free' : '<span style="color:var(--green)">Full speed</span>'}</div>
+           <a href="me.html#profile" role="menuitem">Profile</a>
            <a href="me.html#likes" role="menuitem">Liked mods</a>
            <a href="me.html#mods" role="menuitem">${who.github ? 'My mods' : 'Publishing'}</a>
+           <a href="me.html#subscription" role="menuitem">Subscription</a>
            <a href="me.html#settings" role="menuitem">Settings</a>
            ${who.admin ? '<a href="admin.html" role="menuitem">Admin</a>' : ''}
            <button data-signout role="menuitem">Sign out</button>
@@ -270,7 +278,8 @@
             <div class="panel">
               <div class="actions">${who
                 ? `<button class="btn go" data-install>${ICON.vscode} Install in VS Code</button>
-                   <button class="btn" data-tab-open="files">${ICON.down} Download files</button>`
+                   <button class="btn" data-tab-open="files">${ICON.down} Download files</button>
+                   <p class="gate">${sub() === 'free' ? `Free speed, up to ${FREE_SPEED}. <a href="me.html#subscription">Full speed</a> with a subscription.` : 'Full speed, with your subscription.'}</p>`
                 : `<button class="btn go" data-signin>${ICON.lock} Sign in to download</button>
                    <p class="gate">Downloading, installing and seeing where a mod comes from need a free account.</p>`}
                 ${likeButton(m).replace('class="like"', 'class="like" style="justify-content:center;padding:9px"')}
@@ -324,8 +333,10 @@
       if (!who) return signInPage('Your account');
       const mine = D.mods.filter((m) => m.author.github === who.github);
       return `<main class="wrap"><div class="pagehead"><div class="eyebrow">Signed in with ${esc(who.via)}${who.github ? ` · ${esc(who.github)}` : ''}</div><h1>${esc(who.name)}</h1></div>
-        <div class="tabs" role="tablist">${[['likes', 'Liked mods'], ['mods', who.github ? `My mods (${mine.length})` : 'Publishing'], ['settings', 'Settings']]
+        <div class="tabs" role="tablist">${[['profile', 'Profile'], ['likes', 'Liked mods'], ['mods', who.github ? `My mods (${mine.length})` : 'Publishing'], ['subscription', 'Subscription'], ['settings', 'Settings']]
           .map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="false">${l}</button>`).join('')}</div>
+        <div class="tabpanel" data-panel="profile" hidden>${profilePanel(who)}</div>
+        <div class="tabpanel" data-panel="subscription" hidden>${subscriptionPanel()}</div>
         <div class="tabpanel" data-panel="likes" hidden>${(() => {
           const liked = D.mods.filter((m) => likes.has(m.id));
           return liked.length ? `<div class="cards">${liked.map(card).join('')}</div>` : '<p class="empty">Mods you like show up here.</p>';
@@ -345,10 +356,7 @@
         <div class="tabpanel" data-panel="settings" hidden><div class="panel" style="max-width:640px">
           <p class="label">Content</p>
           <label class="toggle"><input type="checkbox" id="adultToggle" ${settings.adult ? 'checked' : ''}> Show adult mods (18+)</label>
-          <p class="dim" style="font-size:15px;margin:6px 0 18px">Off by default. Adult mods never show to visitors who are not signed in.</p>
-          <p class="label">Account</p><dl class="kv" style="max-width:420px"><dt>Name</dt><dd>${esc(who.name)}</dd><dt>Sign-in</dt><dd>${esc(who.via)}</dd></dl>
-          <div class="row" style="margin-top:18px"><button class="btn sm" data-toast="Downloads a copy of everything EDGEmods keeps for your account.">Download my data</button>
-            <button class="btn sm danger" data-toast="Deletes your account, likes and settings. Your mods stay in your repositories.">Delete account</button></div>
+          <p class="dim" style="font-size:15px;margin:6px 0 0">Off by default. Adult mods never show to visitors who are not signed in.</p>
         </div></div></main>`;
     },
 
@@ -452,7 +460,7 @@
       ? `<input type="checkbox" checked disabled aria-label="${esc(f.title)} (required)">`
       : `<input type="${kind}" ${group ? `name="g-${esc(group)}"` : ''} ${checked ? 'checked' : ''} data-size="${f.size}" aria-label="${esc(f.title)}">`;
     return `<div class="file">${input}<div><div class="t">${esc(f.title)}</div><div class="n">${esc(f.name)}</div></div>
-      <div class="sz">${bytes(f.size)}${who ? `<br><a href="#" data-toast="Counted as a download, then sent to the file on GitHub.">Download</a>` : ''}</div>${f.note ? `<p class="note">${esc(f.note)}</p>` : ''}${fileNeeds(f)}</div>`;
+      <div class="sz">${bytes(f.size)}${who ? `<br><a href="#" data-toast="${sub() === 'free' ? `Counted as a download, then streamed by EDGEmods at up to ${FREE_SPEED}.` : 'Counted as a download, then sent to the file on GitHub at full speed.'}">Download</a>` : ''}</div>${f.note ? `<p class="note">${esc(f.note)}</p>` : ''}${fileNeeds(f)}</div>`;
   }
 
   /** A requirement's version in words: "1.2.0 or newer", or "exactly 1.4.0" when pinned. */
@@ -468,6 +476,61 @@
       const dep = byId(r.mod);
       return `<a href="mod.html?id=${esc(r.mod)}">${esc(dep?.name ?? r.mod)}</a> ${esc(needs(r))}`;
     }).join(', ')}.</p>`;
+  }
+
+  // ---- the account page: profile from Auth0, the subscription from Stripe ----
+  function profilePanel(who) {
+    const social = who.via !== 'Email';
+    const linked = [
+      ['Email and password', who.via === 'Email' ? who.email : null],
+      ['Google', who.via === 'Google' ? who.email : null],
+      ['GitHub', who.github],
+    ];
+    return `<div class="acct">
+      <div class="panel"><p class="label">Profile</p>
+        <div class="row" style="margin-bottom:14px"><span class="avatar big">${esc(who.name[0])}</span><div><b style="font-family:var(--display);font-size:20px">${esc(who.name)}</b><br><span class="dim">${esc(who.email)}</span></div></div>
+        <dl class="kv"><dt>Email</dt><dd>${esc(who.email)} <span class="tag g">Verified</span></dd><dt>Signed in with</dt><dd>${esc(who.via)}</dd><dt>Member since</dt><dd>${esc(date(who.since))}</dd><dt>Plan</dt><dd>${sub() === 'free' ? 'Free' : 'Full speed'}</dd></dl>
+        <div class="row" style="margin-top:16px">
+          <button class="btn sm" data-toast="Your display name on EDGEmods, saved to your Auth0 profile.">Edit name</button>
+          ${social ? `<span class="dim" style="font-size:14px">Email and password are managed by ${esc(who.via)}.</span>`
+            : `<button class="btn sm" data-toast="Sends a link to the new address; the change applies once it is confirmed.">Change email</button>
+               <button class="btn sm" data-toast="Auth0 emails you a link to set a new password.">Change password</button>`}
+        </div></div>
+      <div class="panel"><p class="label">Sign-in methods</p>
+        <p class="dim" style="font-size:15px;margin-top:0">Linked sign-ins share one EDGEmods account: likes, comments, downloads and the subscription.</p>
+        <div class="links">${linked.map(([name, v]) => `<div class="row"><b>${esc(name)}</b><span class="dim">${v ? esc(v) : 'Not linked'}</span>${v ? '<span class="tag g" style="margin-left:auto">Linked</span>'
+          : `<button class="btn sm" style="margin-left:auto" ${name === 'GitHub' ? 'data-gh-link' : `data-toast="Signs in with ${esc(name)} once and links it to this account."`}>Link</button>`}</div>`).join('')}</div>
+        ${who.github ? `<p class="label" style="margin-top:18px">Posting to GitHub</p>
+          <div class="row"><span>${ghConnected() ? `Connected: Discussions and Issues posts go to GitHub as <b>${esc(who.github)}</b>.` : 'Not connected. Connect it from any post box, or here.'}</span>
+          <button class="btn sm${ghConnected() ? ' danger' : ' go'}" style="margin-left:auto" data-gh-toggle>${ghConnected() ? 'Disconnect' : 'Connect'}</button></div>` : ''}
+      </div>
+      <div class="panel"><p class="label">Your data</p>
+        <div class="row"><button class="btn sm" data-toast="Downloads a copy of everything EDGEmods keeps for your account.">Download my data</button>
+          <button class="btn sm danger" data-toast="Cancels your subscription in Stripe, then deletes your account, likes, comments and settings. Your mods stay in your repositories.">Delete account</button></div></div>
+    </div>`;
+  }
+
+  function subscriptionPanel() {
+    const s = sub();
+    const plan = `<div class="panel plan${s === 'free' ? '' : ' on'}"><p class="label">Full speed</p>
+      <div class="price">$4.99<small> / month · example price</small></div>
+      <ul><li>Downloads and installs at full speed, straight from GitHub</li><li>The same in VS Code: installs with all their requirements, fast</li><li>Supports EDGEmods' servers and checks</li></ul>
+      <p class="dim" style="font-size:14px;margin:0">Every mod stays free to download and install. The subscription buys speed, not access.</p></div>`;
+    if (s === 'free') {
+      return `<div class="acct"><div class="panel"><p class="label">Your plan</p><div class="price">Free</div>
+        <dl class="kv"><dt>Download speed</dt><dd>Up to ${FREE_SPEED}</dd><dt>Installs in VS Code</dt><dd>Same speed</dd></dl></div>
+        ${plan}<div class="row"><button class="btn go" data-sub="subscribe">Subscribe</button><span class="dim" style="font-size:14px">Payment on Stripe's secure page; EDGEmods never sees your card.</span></div></div>`;
+    }
+    const ending = s === 'ending';
+    return `<div class="acct">${plan}
+      <div class="panel"><p class="label">Billing</p>
+        <dl class="kv"><dt>Status</dt><dd>${ending ? `<span class="tag y">Ends ${esc(periodEnd())}</span>` : '<span class="tag g">Active</span>'}</dd>
+          <dt>${ending ? 'Full speed until' : 'Renews on'}</dt><dd>${esc(periodEnd())}</dd><dt>Payment</dt><dd>Visa ending 4242</dd></dl>
+        <div class="row" style="margin-top:16px">
+          <button class="btn sm go" data-toast="Opens Stripe's customer portal: change the card, see and download invoices, change or cancel the plan. You come back here after.">Manage billing and invoices</button>
+          ${ending ? '<button class="btn sm" data-sub="resume">Keep my subscription</button>' : '<button class="btn sm danger" data-sub="cancel">Cancel subscription</button>'}
+        </div>
+        <p class="dim" style="font-size:14px;margin:12px 0 0">${ending ? 'Cancelled: no more payments. Downloads go back to free speed after this date.' : 'Cancel any time; full speed lasts until the end of the period you paid for.'}</p></div></div>`;
   }
 
   // ---- talking about a mod: EDGEmods comments (any account), and the repository's Discussions and Issues (GitHub) ----
@@ -713,6 +776,18 @@
       store.set('comment-likes', [...commentLikes]);
       return rerenderMod();
     }
+    if (d.sub) {
+      if (!me()) return signInModal();
+      const next = { subscribe: 'active', cancel: 'ending', resume: 'active' }[d.sub];
+      setSub(next);
+      rerenderMod();
+      return toast({
+        subscribe: 'In the real site this opens Stripe Checkout; Stripe tells EDGEmods when you have paid. Full speed now.',
+        cancel: 'In the real site this happens in Stripe\'s portal. Full speed until the end of the period.',
+        resume: 'Your subscription carries on, as before.',
+      }[d.sub]);
+    }
+    if ('ghToggle' in d) { store.set('gh-posting', !ghConnected()); rerenderMod(); return toast(ghConnected() ? 'Connected: one GitHub approval.' : 'Disconnected: EDGEmods deleted its GitHub token for you.'); }
     if ('ghLink' in d) return toast('Adds a GitHub sign-in to your EDGEmods account (Auth0 links the two). Your likes, comments and downloads stay with it. To see the next step, view as Modder.');
     if ('ghConnect' in d) { store.set('gh-posting', true); rerenderMod(); return toast('One GitHub approval, then you post from EDGEmods. Disconnect any time in your settings.'); }
     if (d.ghStart) {
@@ -737,7 +812,7 @@
     }
     if ('install' in d) {
       const m = byIdFromPage();
-      return toast(`Opens VS Code: vscode://edgemodders.edgemods/install?mod=${m.id}&version=${m.version}. EDGEmods works out the requirements, downloads every file and hands each mod to EDGEdeck for your loadout.`);
+      return toast(`Opens VS Code: vscode://edgemodders.edgemods/install?mod=${m.id}&version=${m.version}. EDGEmods works out the requirements, downloads every file (${sub() === 'free' ? `free speed, up to ${FREE_SPEED}` : 'full speed'}) and hands each mod to EDGEdeck for your loadout.`);
     }
     if (d.tabOpen) { pages._showTab?.(d.tabOpen); $('.tabs')?.scrollIntoView({ behavior: 'smooth' }); return; }
     if (d.shot) {

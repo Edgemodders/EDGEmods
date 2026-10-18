@@ -180,6 +180,17 @@ select.sort:focus { outline: none; border-color: var(--yellow); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 16px; margin: 0; }
 .kv dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding-top: 3px; }
 .kv dd { margin: 0; text-align: right; color: var(--fg); overflow-wrap: anywhere; }
+.acct { display: flex; flex-direction: column; gap: 16px; max-width: 720px; }
+.acct .kv { max-width: 520px; }
+.avatar.big { width: 52px; height: 52px; font-size: 26px; }
+.links { display: flex; flex-direction: column; }
+.links .row { padding: 10px 0; border-top: 1px solid var(--line); }
+.links .row b { min-width: 210px; font-family: var(--display); letter-spacing: .02em; }
+.price { font-family: var(--display); font-size: 34px; font-weight: 700; color: var(--fg); margin-bottom: 8px; }
+.price small { font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--dim); letter-spacing: .06em; }
+.plan ul { margin: 0 0 12px; padding-left: 20px; }
+.plan.on { border-color: rgba(93,255,161,.5); }
+.plan.on .label { color: var(--green); }
 .gate { font-size: 16px; color: var(--soft); margin: 0; }
 .tabs { display: flex; gap: 0; margin-top: 30px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 16px; font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); cursor: pointer; white-space: nowrap; }
