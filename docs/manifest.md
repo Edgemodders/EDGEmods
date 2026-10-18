@@ -12,7 +12,10 @@ Every mod on EDGEmods has an `edgemods.json` at the top of its repository. The E
 | `README.md` | The mod page, in GitHub-flavored markdown. Another file can be named in `page` |
 | `images/` | The card image and the gallery |
 | `CHANGELOG.md` | Optional, named in `changelog` |
-| Releases | One per version, tagged `v` plus the version (`v1.2.0`), with the files listed in `files` attached. Downloads never go in the repository: git refuses files over 100 MB, while release files can be up to 2 GiB each |
+| The project | Proposed: the mod's source, the REDcode project (`.cpmodproj`, `source/`). Publishing turns the modder's project folder into this repository; see [the design](design.html#the-mods-source-builds-and-releases) |
+| `.github/workflows/` | Proposed: a few lines that call EDGEmods' shared build workflow |
+| `.gitignore` | Proposed: leaves out `packed/` and REDcode's local state |
+| Releases | One per version, tagged `v` plus the version (`v1.2.0`), with the files listed in `files` attached. Downloads never go in the repository: git refuses files over 100 MB, while release files can be up to 2 GiB each. Proposed: the files are built from the tag's commit by the shared build workflow |
 
 Each release's tag points at a commit whose `edgemods.json` describes that release, so older versions keep their own files, notes and requirements.
 
@@ -46,7 +49,7 @@ Each release's tag points at a commit whose `edgemods.json` describes that relea
 
 | Field | What it is |
 |---|---|
-| `name` | The file's name on the release, exactly, capitals included. A `.zip` or `.7z`, with letters, digits, dots, dashes, underscores and `+` only, because GitHub renames anything else |
+| `name` | The file's name on the release, exactly, capitals included. A `.zip` or `.7z`, with letters, digits, dots, dashes, underscores and `+` only, because GitHub renames anything else. Proposed: laid out as the game folder (`archive/pc/mod/…`, `r6/…`, `bin/x64/…`), as mod managers expect |
 | `role` | `required`: always installed. `optional`: the player may add it. `choose-one`: one file of its group is installed |
 | `group` | For `choose-one` files only: the group's name, such as "Body". Files in a group override the same thing, so the player picks one. A group has at least two files |
 | `title` | A short label, up to 80 characters |

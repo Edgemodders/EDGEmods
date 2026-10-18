@@ -36,11 +36,11 @@ EDGE brings modding to everyone, especially non-coders: easy, fun and fast. Shar
 | Step | Who | What happens |
 |---|---|---|
 | Make | The modder, in REDcode | A WolvenKit project, packed by REDcode |
-| Publish | The modder, in the EDGEmods extension | REDcode's project button opens the EDGEmods publishing form in the editor. The form creates the GitHub repository, pushes the mod's files, makes a release with a version tag, and opens the registry pull request |
+| Publish | The modder, in the EDGEmods extension | REDcode's project button opens the EDGEmods publishing form in the editor. The form turns the project folder into a git repository, creates the GitHub repository and pushes the project to it, makes the first release with a version tag, and opens the registry pull request |
 | Check | EDGEmods CI | The merge checks run on the pull request (see "The registry and its checks") |
 | Merge | EDGEmods CI | Automatic when every check passes. The owner spot-reviews afterwards |
 | Index | The owner's machine | The merge to `main` starts the rebuild of the website's database |
-| Update | The modder, in the EDGEmods extension | Update a mod, replace files, change the version, and other admin tasks, from the extension's explorer of the modder's published mods. A new version is a new release in the mod's repository |
+| Update | The modder, in VS Code and the EDGEmods extension | The modder keeps editing the project and pushes with VS Code's Source Control; others can send pull requests. When the modder is ready, Release in the extension makes the new version (see "The mod's source, builds and releases"). Other admin tasks are in the extension's explorer of the modder's published mods |
 
 Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds the button that opens it. The form's full set of actions is designed later.
 
@@ -52,9 +52,9 @@ Publishing lives in the EDGEmods extension, not in REDcode; REDcode only adds th
 | 2 | REDcode → EDGEmods | REDcode calls the EDGEmods extension (which has its own activity bar icon) to start publishing |
 | 3 | The EDGEmods form | The form opens with defaults from the REDcode project: name, version, files and so on. The modder fills in the rest |
 | 4 | GitHub sign-in, once | EDGEmods asks the modder to sign in with GitHub and approve its access, **before** anything is created |
-| 5 | The extension | Creates the repository and fills it: `edgemods.json`, the README, images, Issues and Discussions turned on, EDGEmods' webhook, the release with its files, then the registry pull request |
+| 5 | The extension | Turns the project folder into a git repository (the owner, 2026-10-18), adds `edgemods.json`, the README, images and the build workflow, creates the GitHub repository and pushes; turns on Issues and Discussions, adds EDGEmods' webhook, makes the first release with its files, then the registry pull request |
 
-One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in permissions (OAuth scopes) apply to the whole account, not to one repository, so `public_repo`, approved before the repository exists, also covers its Issues, Discussions and releases afterwards, and `write:repo_hook` covers the webhook. A second approval would only be needed with per-repository access (a GitHub App), which EDGEmods does not use on mod repositories. Details in "Talking about a mod".
+One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in permissions (OAuth scopes) apply to the whole account, not to one repository, so `public_repo`, approved before the repository exists, also covers its Issues, Discussions and releases afterwards, `write:repo_hook` covers the webhook, and `workflow` covers the build workflow file. A second approval would only be needed with per-repository access (a GitHub App), which EDGEmods does not use on mod repositories. Details in "Talking about a mod".
 
 ## The registry and its checks
 
@@ -92,6 +92,38 @@ One approval is enough (proposed, from GitHub's documentation): GitHub's sign-in
 - External links are the modder's to own: no version, not scanned.
 
 **Proposed:** the layout and every field of `edgemods.json` are on their own page, [the format](manifest.html), built in R1 for review.
+
+## The mod's source, builds and releases
+
+**Decided (the owner, 2026-10-18):**
+
+- The repository holds the mod's source: the whole REDcode project, not only the files the website reads. Release files hold the built mod.
+- Publishing turns the modder's own project folder into a git repository: `git init`, the EDGEmods files added, the first commit pushed to the new GitHub repository. From then on the folder is a managed checkout.
+- The author keeps editing in that folder and commits and pushes with VS Code's Source Control, as any developer would.
+- Other modders can propose changes to a mod by pull request, which the author reviews and merges.
+- Nothing is released automatically. A push or a merge never makes a release; the author says when a version is ready.
+
+**Proposed:**
+
+| Topic | Proposal | Why |
+|---|---|---|
+| Git | The extension works through VS Code's built-in Git extension (its API), so the folder appears in Source Control at once. Pushes are authenticated by the same VS Code GitHub sign-in. If Git is not installed, the form says so and links the installer before anything else happens | One sign-in; nothing to learn beyond VS Code's own buttons |
+| What the first commit holds | The project (the `.cpmodproj` and `source/`), `edgemods.json`, `README.md`, `images/`, `LICENSE`, a `.gitignore` and the build workflow. The `.gitignore` leaves out `packed/` and REDcode's local state (`.redcode/`) | The source, without build output or one machine's state |
+| A folder already in git | Kept: the extension adds the EDGEmods files as a new commit, and adds the GitHub repository as `origin` if there is none. If `origin` already points to a GitHub repository the modder owns, the form offers to publish that one | Modders who use git already keep their history |
+| Large files | Before the first push, the form lists any file over 50 MB (GitHub warns) and stops on any over 100 MB (GitHub refuses it), in plain words with what to do. Git LFS is not used at first: its free allowance is small (amount unverified) | A failed push halfway through publishing is the worst first experience |
+| Builds on push | A push to `main`, and every pull request, runs a build check: pack, zip, check the zip. It never makes a release. The extension shows the result beside the mod in My mods; the zip is kept as a workflow artifact for a few days, for testers | The author and contributors find out at once if a change breaks the build |
+| Releasing | The author clicks Release in the extension (or on their mod page). They pick the next version (suggested from the last) and write a note; the changes since the last release are listed for them. The extension writes the version into `edgemods.json`, commits, and pushes the tag `v<version>`. The tag starts the release build, which packs, zips, checks and makes the GitHub release with the files attached | One deliberate action; the tag's commit holds the matching `edgemods.json`, as [the format](manifest.html) requires |
+| The shared build | The workflow file in each mod's repository is a few lines that call one shared, reusable workflow in the EDGEmods repository, pinned to a tag like `build-v1`. A fix for a WolvenKit or game change is made once, in the shared workflow, not in every mod | Most modders cannot fix a broken workflow; a shared one is maintained by EDGE |
+| Packing on GitHub | A Windows runner downloads REDbridge's release and packs the project the way REDcode does. REDcode owns packing, so this needs a command-line pack from REDcode (a request issue), not a copy of its code. **First thing to test:** that REDbridge runs headless on a runner, packs without a game folder, and how long it takes | Packing is REDcode's job; untested on a runner |
+| If the runner cannot pack | Release builds on the author's PC with REDcode instead, then pushes the tag and uploads the files itself. Everything after the build is the same | The release flow does not depend on the runner |
+| Several files | A release can have several files (choose-one variants, optional parts). Which parts of the project go into which file is set in the publishing form and kept in the repository for the build (to be designed in R5) | |
+| The zip's layout | Every release file is laid out as the game folder: `archive/pc/mod/…`, `r6/scripts/…`, `r6/tweaks/…`, `bin/x64/plugins/…`. REDcode's `packed` folder already is, so the build only zips it | What EDGEdeck, Vortex and Mod Organizer 2 install as it is |
+| Checking the zip | The merge checks and the indexer's release checks look at the listing they already make: a zip with nothing under a folder a mod manager knows fails, with a plain message | Catches hand-made zips |
+| Built from source | The shared build adds GitHub's build attestation to each file, which proves it was built by that workflow from that commit. The mod page shows "Built from source" when it is there | Trust: the download is the repository's code |
+| Permissions | Adding the workflow file needs GitHub's `workflow` scope, asked with the others at the one sign-in | GitHub refuses pushes that touch `.github/workflows/` without it |
+| Contributing | "Contribute to this mod" in the extension forks the repository into the contributor's account, clones it and opens it in REDcode. "Propose change" pushes their branch and opens the pull request. The contributor needs a GitHub account | Contributors stay in VS Code too |
+| Reviewing a pull request | My mods lists the pull requests on the author's mods. "Try it" checks out the branch, packs it and installs it through EDGEdeck; "Merge" merges. GitHub holds the build check of a first-time contributor's pull request until the author approves it, which the extension also offers | The author never has to visit GitHub |
+| The "Updated" chip | The new release reaches EDGEmods through the repository's webhook (`release`). The indexer runs the release checks, records the version and date, and the card gets its "Updated" chip; players who have the mod see the update in the extension. A release made by a workflow does not start other workflows, but GitHub still sends the webhook | The same path for every release, however it was built |
 
 ## The website
 
@@ -132,8 +164,8 @@ A GitHub App cannot be installed silently: GitHub has no API that creates an ins
 
 | Topic | Proposal | Why |
 |---|---|---|
-| The sign-in | The extension signs in to GitHub through VS Code's built-in GitHub sign-in, asking once for `public_repo` (create and manage public repositories, releases, discussions, pull requests) and `write:repo_hook` (add a webhook). GitHub shows one approval page as part of signing in; after that everything is silent. The token stays in VS Code; the EDGEmods server never holds it | One approval, which every GitHub sign-in shows anyway. A server that held modders' write tokens would be a target |
-| Setting up the repository | When publishing, the extension creates the repository, turns on Issues and Discussions (Discussions are off on new repositories), pushes the files, makes the release and adds EDGEmods' webhook, all through the API | The modder sees EDGEmods' form, not GitHub |
+| The sign-in | The extension signs in to GitHub through VS Code's built-in GitHub sign-in, asking once for `public_repo` (create and manage public repositories, releases, discussions, pull requests), `write:repo_hook` (add a webhook) and `workflow` (add the build workflow file). GitHub shows one approval page as part of signing in; after that everything is silent. The token stays in VS Code; the EDGEmods server never holds it | One approval, which every GitHub sign-in shows anyway. A server that held modders' write tokens would be a target |
+| Setting up the repository | When publishing, the extension creates the repository, pushes the project through git, turns on Issues and Discussions (Discussions are off on new repositories), makes the release and adds EDGEmods' webhook, through git and the API | The modder sees EDGEmods' form, not GitHub |
 | The webhook | A repository webhook to `https://edgemods.ai/api/v1/github/webhook`, with a secret the server issues for that repository (each delivery is signed with it). Events: `issues`, `issue_comment`, `discussion`, `discussion_comment`, `release`, `repository`. GitHub sends a `ping` when it is added, so the server knows the webhook works | It replaces the App's webhooks, and the indexer hears of new releases at once instead of polling |
 | No webhook | Things still work, a little staler: the cache expires after a few minutes, and the indexer also checks releases on a schedule. The mod's page in "My mods" says the webhook is missing, with a button to add it again. Not a merge check: the checks cannot see a repository's webhooks | Never block publishing over a convenience |
 | Reading | Live from GitHub with EDGEmods' own token: Issues through REST, Discussions through GraphQL (GitHub has no REST API for them). A short cache in memory, dropped by the webhook. Conditional requests with ETags, which GitHub does not count against the rate limit when nothing changed. Which token (the registry App's, or another) is settled in R3 | Nothing kept on EDGEmods but a disposable cache. One token's limit (5,000 requests an hour) is shared by every mod, so caching matters; if it runs short, the local copy below |
@@ -253,8 +285,8 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | Tool | How |
 |---|---|
 | EDGEdeck | Owns installing. `EDGEdeckApi` version 1 (checked 2026-10-17) has `installProject`, `deploy` and `turnOff`, but no install from a downloaded archive. **First request issue (proposed):** install a list of downloaded mods in order, each as `{ files: [paths], source: 'edgemods', modId, version, requires: [modIds] }`, into the active loadout, so EDGEmods versions join EDGEdeck's families the way Nexus versions do; plus a way to ask which EDGEmods mods and versions the library already has |
-| REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issue (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing |
-| GitHub | Mod repositories, releases, the webhook and the registry pull request are made with the modder's own GitHub account, through VS Code's GitHub sign-in (`public_repo` and `write:repo_hook`), so the modder never has to visit GitHub |
+| REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issues (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing; and a command-line pack (a project folder in, the `packed` folder out, through REDbridge) that the shared build workflow can run on a GitHub runner |
+| GitHub | Mod repositories, pushes, releases, the webhook and the registry pull request are made with the modder's own GitHub account, through VS Code's GitHub sign-in (`public_repo`, `write:repo_hook` and `workflow`), so the modder never has to visit GitHub. Builds run on GitHub Actions in the mod's repository, through EDGEmods' shared workflow |
 | EDGEweb | Owns https://edgemodders.ai, the platform's site; EDGEmods has its own domain, https://edgemods.ai. EDGEweb can link to it |
 | EDGEkit, EDGEplugin | Bundle EDGEmods, and teach it to the assistant, once released |
 
@@ -278,7 +310,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | **R2 Registry and checks** | The registry folder, the merge checks (structure, binary and malware), the GitHub App, auto-merge | A pull request for the example mod merges by itself; a bad one is refused with a clear reason |
 | **R3 Website** | The indexer, the database and Litestream, the Express service, Auth0, browse, search, the mod page, downloads, the admin page | The example mod has a page, found by search, downloadable after sign-in |
 | **R4 Browse and install** | The extension's browse view, Auth0 sign-in, install through EDGEdeck, Install links from the website | A mod found in VS Code is installed through EDGEdeck and runs in the game |
-| **R5 Publish** | The publishing form, REDcode's button, the repository and release, the registry pull request, My mods, updates | A non-coder publishes a mod from REDcode and sees its page |
+| **R5 Publish** | The publishing form, REDcode's button, the git checkout and repository, the shared build workflow, Release, the registry pull request, My mods, contributing and reviewing pull requests | A non-coder publishes a mod from REDcode and sees its page; a second modder's pull request is merged and released, and the card shows "Updated" |
 | **R6 Ship** | The agent review, docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | Someone outside the team publishes a mod from the docs alone |
 
 ## Open questions
