@@ -215,6 +215,9 @@ select.sort:focus { outline: none; border-color: var(--yellow); }
 .version { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 6px 18px; align-items: start; }
 .version .v { font-family: var(--display); font-weight: 700; font-size: 22px; } .version .v small { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--dim); letter-spacing: .06em; }
 .version ul { margin: 0; padding-left: 18px; } .version li::marker { color: var(--yellow); }
+.version-row summary .num { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--fg); min-width: 64px; }
+.version-row .changes { margin: 0 0 14px; padding-left: 18px; } .version-row .changes li::marker { color: var(--yellow); }
+.version-row .vfiles { margin-bottom: 14px; } .version-row .vfiles .file { grid-template-columns: 96px minmax(0, 1fr) auto; }
 .posts { display: flex; flex-direction: column; gap: 10px; }
 .post { background: var(--panel); border: 1px solid var(--line); padding: 12px 14px; }
 .post .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }

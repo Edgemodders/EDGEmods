@@ -310,10 +310,7 @@
           .map(([k, l], i) => `<button role="tab" data-tab="${k}" aria-selected="${i === 0}">${l}</button>`).join('')}</div>
         <div class="tabpanel" data-panel="about">${readme(m)}</div>
         <div class="tabpanel" data-panel="files" hidden>${filesPanel(m, latest)}</div>
-        <div class="tabpanel" data-panel="versions" hidden><div class="versions">${m.releases.map((r, i) => `
-          <div class="panel version"><div class="v">${esc(r.version)}<small>${esc(date(r.date))}${i === 0 ? ' · latest' : ''}</small></div>
-            <ul>${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
-            <div>${who ? `<button class="btn sm" data-toast="Installs ${esc(r.version)} through EDGEdeck, which keeps versions side by side.">${i === 0 ? 'Install' : 'Install this version'}</button>` : '<span class="dim mono" style="font-size:11px">Sign in to install</span>'}</div></div>`).join('')}</div></div>
+        <div class="tabpanel" data-panel="versions" hidden>${versionsPanel(m)}</div>
         <div class="tabpanel" data-panel="needs" hidden><p class="dim">Installing in VS Code brings the EDGEmods requirements along, and theirs in turn: EDGEmods works out the chain, and EDGEdeck installs each mod into your loadout. Get the links outside EDGEmods yourself; EDGEmods does not check them.</p>
           <div class="reqs">${m.requirements.map((r) => {
             if (r.mod) {
@@ -452,6 +449,23 @@
       <div class="installbar" style="margin-top:14px">${who
         ? `<button class="btn go" data-install>${ICON.vscode} Install selected in VS Code</button><span class="sum" id="selSum"></span>`
         : `<button class="btn go" data-signin>${ICON.lock} Sign in to download</button>`}</div>`;
+  }
+
+  /** Every release, newest first; each row opens to its changes, files and requirements. */
+  function versionsPanel(m) {
+    const who = me();
+    const link = who ? `<br><a href="#" data-toast="${sub() === 'free' ? `Counted as a download, then streamed by EDGEmods at up to ${FREE_SPEED}.` : 'Counted as a download, then sent to the file on GitHub at full speed.'}">Download</a>` : '';
+    const roles = { required: 'Required', optional: 'Optional' };
+    return `<p class="dim">Every release stays here with its own files and requirements, so you can go back to an older version. The changes are the author's notes from the mod's changelog, written when they released it.</p>
+      <div class="threads">${m.releases.map((r, i) => `<details class="thread version-row" data-thread="v-${esc(r.version)}">
+        <summary><span class="num">${esc(r.version)}</span><span class="title">${esc(r.notes[0])}${r.notes.length > 1 ? ` <span class="dim">and ${r.notes.length - 1} more</span>` : ''}</span>
+          <span class="meta">${i === 0 ? '<span class="tag y">Latest</span>' : ''}<span class="dim">${esc(date(r.date))} · tested with game ${esc(r.game)} · ${r.files.length} ${r.files.length === 1 ? 'file' : 'files'}</span></span></summary>
+        <div class="body">
+          <p class="label">What changed</p><ul class="changes">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
+          <p class="label">Files</p><div class="vfiles">${r.files.map((f) => `<div class="file"><span class="dim mono" style="font-size:11px">${esc(f.role === 'choose-one' ? `One of ${f.group}` : roles[f.role])}</span><div><div class="t">${esc(f.title)}</div><div class="n">${esc(f.name)}</div></div><div class="sz">${bytes(f.size)}${link}</div>${fileNeeds(f)}</div>`).join('')}</div>
+          <p class="label">Requirements</p><p style="margin:0 0 12px">${m.requirements.length ? m.requirements.map((q) => q.mod ? `${esc(byId(q.mod)?.name ?? q.mod)} ${esc(needs(q))}` : `${esc(q.name)} (outside EDGEmods)`).join(' · ') : 'None'}</p>
+          ${who ? `<button class="btn sm${i === 0 ? ' go' : ''}" data-toast="Installs ${esc(r.version)} and its requirements through EDGEdeck. EDGEdeck keeps versions side by side, so going back is one switch.">${i === 0 ? 'Install' : 'Install this version'}</button>` : '<span class="dim mono" style="font-size:11px">Sign in to download or install</span>'}
+        </div></details>`).join('')}</div>`;
   }
 
   function fileRow(f, kind, checked, group) {

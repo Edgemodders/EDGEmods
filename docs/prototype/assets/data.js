@@ -27,7 +27,7 @@
         { name: 'neon-rain-weather-2.4.0.zip', role: 'required', title: 'Main file', size: 182 * MB },
         { name: 'neon-rain-lite-2.4.0.zip', role: 'optional', title: 'Lighter puddles', size: 12 * MB, note: 'Fewer reflections, for older graphics cards.' },
       ],
-      releases: [['2.4.0', 2, ['Puddles fade out more gently at dawn.', 'Fixed rain inside the Afterlife.']], ['2.3.1', 40, ['Works with game 2.31.']], ['2.0.0', 210, ['First release on EDGEmods.']]],
+      releases: [['2.4.0', 2, ['Puddles fade out more gently at dawn.', 'Fixed rain inside the Afterlife (thanks to @rtakes, pull request #9).']], ['2.3.1', 40, ['Works with game 2.31.']], ['2.0.0', 210, ['First release on EDGEmods.'], '2.12']],
     },
     {
       id: 'street-cred-overhaul', name: 'Street Cred Overhaul', type: 'gameplay', author: ['Mara Okafor', 'mokafor'],
@@ -57,10 +57,10 @@
         { name: 'arasaka-tactical-wear-3.0.1.zip', role: 'required', title: 'Clothing', size: 96 * MB },
         { name: 'arasaka-tactical-body-a-3.0.1.zip', role: 'choose-one', group: 'Body', title: 'Body A (vanilla)', size: 8 * MB, note: 'The game\'s own body shape.' },
         { name: 'arasaka-tactical-body-b-3.0.1.zip', role: 'choose-one', group: 'Body', title: 'Body B (athletic)', size: 8 * MB },
-        { name: 'arasaka-tactical-body-c-3.0.1.zip', role: 'choose-one', group: 'Body', title: 'Body C (curvy)', size: 8 * MB },
-        { name: 'arasaka-tactical-colours-3.0.1.zip', role: 'optional', title: 'Extra colours', size: 22 * MB, note: 'Five more colours for each piece.', requirements: [{ mod: 'chrome-skin-shaders', version: '1.0.0', exact: true }] },
+        { name: 'arasaka-tactical-body-c-3.0.1.zip', role: 'choose-one', group: 'Body', title: 'Body C (curvy)', size: 8 * MB, since: '3.0.0' },
+        { name: 'arasaka-tactical-colours-3.0.1.zip', role: 'optional', title: 'Extra colours', size: 22 * MB, note: 'Five more colours for each piece.', requirements: [{ mod: 'chrome-skin-shaders', version: '1.0.0', exact: true }], since: '3.0.0' },
       ],
-      releases: [['3.0.1', 11, ['Fixed the jacket clipping with long hair.']], ['3.0.0', 50, ['New: body type C.', 'Every piece re-fitted.']], ['2.2.0', 95, ['First release on EDGEmods.']]],
+      releases: [['3.0.1', 11, ['Fixed the jacket clipping with long hair.']], ['3.0.0', 50, ['New: body type C.', 'New: extra colours, as an optional file.', 'Every piece re-fitted.']], ['2.2.0', 95, ['First release on EDGEmods.'], '2.13']],
     },
     {
       id: 'quadra-turbo-r-v8', name: 'Quadra Turbo-R V8', type: 'vehicles', author: ['Diego Restrepo', 'drestrepo'],
@@ -199,6 +199,12 @@
     drestrepo: 'Diego Restrepo', imoreau: 'Ines Moreau', panders: 'Pell Anders', rtakes: 'Rhea Takes',
   };
 
+  /** Compares two versions' numbers: below 0 when a is older than b. */
+  const newer = (a, b) => {
+    const [x, y] = [a, b].map((v) => v.split('-')[0].split('.').map(Number));
+    return x.map((n, k) => n - y[k]).find((d) => d !== 0) ?? 0;
+  };
+
   const shaped = mods.map((m, i) => {
     const [authorName, github] = m.author;
     const required = m.files.filter((f) => f.role === 'required');
@@ -213,7 +219,11 @@
       updatedAt: ago(m.updated),
       size: required.reduce((n, f) => n + f.size, 0) + (firstChoice ? firstChoice.size : 0),
       gallery: 3 + (i % 3),
-      releases: m.releases.map(([version, d, notes]) => ({ version, date: ago(d), notes })),
+      // Each release keeps its own files (named for its version) and the game version it was tested with.
+      releases: m.releases.map(([version, d, notes, game]) => ({
+        version, date: ago(d), notes, game: game ?? m.game,
+        files: m.files.filter((f) => !f.since || newer(version, f.since) >= 0).map((f) => ({ ...f, name: f.name.replace(m.version, version) })),
+      })),
       requirements: m.req,
       status: 'visible',
       reports: m.id === 'smart-gun-rework' ? 1 : 0,
