@@ -11,7 +11,7 @@ Every mod on EDGEmods has an `edgemods.json` at the top of its repository. The E
 | `edgemods.json` | The metadata, described below |
 | `README.md` | The mod page, in GitHub-flavored markdown. Another file can be named in `page` |
 | `images/` | The card image and the gallery |
-| `CHANGELOG.md` | Optional, named in `changelog`. Proposed: always there for mods published with the extension, which writes a section per release, `## 1.2.0 (2026-10-19)` and a list, drafted from the commits; see [the design](design.html#the-mods-source-builds-and-releases) |
+| `CHANGELOG.md` | Optional, named in `changelog`. Proposed: always there for mods published with the extension, which keeps it in the Edgemodders changelog form: `## Unreleased` on top, then a section per release, `## 1.2.0 (2026-10-19)`, its lines grouped **New**, **Changed**, **Fixed**, **Other**, drafted from the commits at Release; see [the design](design.html#the-mods-source-builds-and-releases) |
 | The project | Proposed: the mod's source, the REDcode project (`.cpmodproj`, `source/`). Publishing turns the modder's project folder into this repository; see [the design](design.html#the-mods-source-builds-and-releases) |
 | `.github/workflows/` | Proposed: a few lines that call EDGEmods' shared build workflow |
 | `.gitignore` | Proposed: leaves out `packed/` and REDcode's local state |

@@ -35,6 +35,8 @@ nav:
     url: /research.html
   - title: Dev setup
     url: /dev-setup.html
+  - title: Changelog
+    url: /changelog.html
   - title: EDGEdeck
     url: https://edgemodders.github.io/EDGEdeck/
   - title: REDcode
