@@ -64,7 +64,7 @@ Then open http://127.0.0.1:8787. `EDGEMODS_SHOW_UNCHECKED=1` shows releases that
 
 ## 4. Docs site and brand images
 
-The developer docs at https://edgemodders.github.io/EDGEmods/ are built by `.github/workflows/pages.yml` on every push to `main`. **Settings > Pages > Source** must be **GitHub Actions**. The mod website is a separate build, decided in R0.
+The developer docs at https://edgemodders.github.io/EDGEmods/ are built by `.github/workflows/pages.yml` on every push to `main`. **Settings > Pages > Source** must be **GitHub Actions**. The mod website is `packages/server` (section 3), not this site.
 
 ```powershell
 .\tools\brand\render.ps1   # banner, social preview, icon, badges

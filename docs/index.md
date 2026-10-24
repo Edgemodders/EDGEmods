@@ -1,6 +1,6 @@
 # EDGE<span class="y">mods</span> docs
 
-EDGEmods is the EDGE mod registry for Cyberpunk 2077: a website that lists mods hosted in their authors' own git repositories and renders each mod's page from its repository, and a VS Code extension with an MCP server that browses, installs and publishes them. This site is EDGEmods' developer documentation; the mod website itself does not exist yet.
+EDGEmods is the EDGE mod registry for Cyberpunk 2077: a website that lists mods hosted in their authors' own git repositories and renders each mod's page from its repository, and a VS Code extension with an MCP server that browses, installs and publishes them. This site is EDGEmods' developer documentation. The mod website is being built: a read-only version runs on a PC ([Dev setup](dev-setup.html#run-the-website-on-this-pc)); it is not live at edgemods.ai yet.
 
 | Document | What it covers |
 |---|---|

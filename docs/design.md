@@ -2,7 +2,7 @@
 
 EDGEmods is a mod website for Cyberpunk 2077 that hosts no mod files. Every mod lives in its author's own GitHub repository. EDGEmods is a **registry**: a list of those repositories, checked on the way in, and a website that builds a searchable catalogue and a page for each mod from what is in its repository. A VS Code extension, also called EDGEmods, browses and installs mods, and publishes and manages a modder's own mods. The other EDGE tools read the same registry.
 
-**Status: draft 0.2, 2026-10-17.** Sections marked **Decided** were agreed with the owner in chat on 2026-10-17. Sections marked **Proposed** are not decided yet. The research behind this page is in [R0 research](research.html). On 2026-10-17 the owner started the build: R1, the metadata format, is drafted as code and reviewed as it is built.
+**Status: draft 0.2, 2026-10-17.** Sections marked **Decided** were agreed with the owner in chat on 2026-10-17. Sections marked **Proposed** are not decided yet. The research behind this page is in [R0 research](research.html). On 2026-10-17 the owner started the build: R1, the metadata format, is drafted as code and reviewed as it is built. Built since, for review (2026-10-24): R1, R2 (the registry and its merge checks) and R3a and R3b (the indexer and the read-only website); the [docs home](index.html) has the roadmap status.
 
 ## The idea, as the owner put it (Decided)
 
@@ -346,7 +346,7 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | REDcode | Owns the project and packing (`REDcodeApi` version 1: `project()`, `pack()`). **Request issues (proposed):** a project button and command that open the EDGEmods publishing form, with a prompt to install EDGEmods when it is missing; and a command-line pack (a project folder in, the `packed` folder out, through REDbridge) that the shared build workflow can run on a GitHub runner |
 | GitHub | Mod repositories, pushes, releases, the webhook and the registry pull request are made with the modder's own GitHub account, through VS Code's GitHub sign-in (`public_repo`, `write:repo_hook` and `workflow`), so the modder never has to visit GitHub. Builds run on GitHub Actions in the mod's repository, through EDGEmods' shared workflow |
 | EDGEweb | Owns https://edgemodders.ai, the platform's site; EDGEmods has its own domain, https://edgemods.ai. EDGEweb can link to it |
-| EDGEkit, EDGEplugin | Bundle EDGEmods, and teach it to the assistant, once released |
+| EDGEkit, EDGEchat (the Claude Code plugin, named EDGEplugin until 2026-10-17) | Bundle EDGEmods, and teach it to the assistant, once released |
 
 ## The MCP server (Proposed)
 
@@ -375,8 +375,8 @@ To be agreed. The format comes first, because the checks, the website and the ex
 
 | Question | Notes |
 |---|---|
-| The metadata format and the publishing form's fields | Next, on their own page |
-| Which malware scanner | VirusTotal's terms for this use, ClamAV, or both |
+| The metadata format and the publishing form's fields | The format is drafted on its own page, [edgemods.json](manifest.html) (proposed, for the owner's review); the form's fields follow it |
+| Which malware scanner | ClamAV runs in the merge checks now (R2). VirusTotal as a second scanner waits on a reading of its terms for this use |
 | What the agent review tags and refuses | The owner defines it before R6 |
 | Nexus | Cross-posting, linked both ways? EDGEdeck already speaks to Nexus |
 | Other git hosts | GitHub only for now |

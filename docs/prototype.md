@@ -1,6 +1,6 @@
 # Website prototype
 
-A clickable prototype of https://edgemods.ai, built on 2026-10-17 so the owner can shape the website before the server (R3) is designed around it. **[Open the prototype](prototype/index.html).**
+A clickable prototype of https://edgemods.ai, built on 2026-10-17 so the owner can shape the website before the server (R3) is designed around it. **[Open the prototype](prototype/index.html).** The owner reviewed it on 2026-10-23, and the real website (`packages/server`, from R3b) reuses its look; the prototype stays as the picture of the pages still to build.
 
 It is plain HTML, CSS and JavaScript in [`docs/prototype`](https://github.com/Edgemodders/EDGEmods/tree/main/docs/prototype), with invented mods, authors and numbers, and no server. The strip at the top switches who is looking: a **visitor** (not signed in), a **player** (signed in with email or Google), a **modder** (signed in with GitHub, owns two mods) or an **admin**. Likes and settings are kept in the browser only.
 
