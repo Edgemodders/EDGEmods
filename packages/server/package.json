@@ -1,0 +1,36 @@
+{
+  "name": "@edgemodders/edgemods-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The EDGEmods website and API at https://edgemods.ai: pages built on the server from index.db and site.db.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "edgemods-server": "bin/edgemods-server.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test \"test/*.test.mjs\"",
+    "start": "npm run build && node bin/edgemods-server.mjs"
+  },
+  "dependencies": {
+    "@edgemodders/edgemods-checks": "*",
+    "@edgemodders/edgemods-format": "*",
+    "@edgemodders/edgemods-indexer": "*",
+    "@fontsource/chakra-petch": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/rajdhani": "5.3.0",
+    "express": "5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

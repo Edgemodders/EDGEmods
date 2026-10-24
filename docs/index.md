@@ -16,14 +16,14 @@ EDGEmods is the EDGE mod registry for Cyberpunk 2077: a website that lists mods 
 
 ## Roadmap status
 
-As of 2026-10-17.
+As of 2026-10-23.
 
 | Phase | Status |
 |---|---|
 | R0 Design | In progress: draft 0.2 |
 | R1 Format | Built for review: schema, validator, folder and release checks, example |
 | R2 Registry and checks | Built for review: the registry folder, the merge checks, the workflow. The GitHub App is set up; the first real publish (a test mod, pull request #1) passed and merged by itself |
-| R3 Website | Prototype reviewed by the owner (2026-10-23). Started in slices R3a to R3h; R3a, the indexer (`packages/indexer`), is built |
+| R3 Website | Prototype reviewed by the owner (2026-10-23). Started in slices R3a to R3h. Built: R3a, the indexer (`packages/indexer`); R3b, the read-only website (`packages/server`: home, browse and search, mod pages, images, the install plan) |
 | R4 Browse and install | Not started |
 | R5 Publish | Not started |
 | R6 Ship | Not started |

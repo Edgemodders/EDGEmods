@@ -15,3 +15,6 @@ rtti-dump*
 *.db
 *.db-*
 *.db.building
+
+# the website's local data folder (index.db, site.db, image cache)
+data/

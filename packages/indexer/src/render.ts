@@ -28,7 +28,8 @@ export interface Rendered {
 
 const markdown = new Marked({ gfm: true, breaks: false });
 
-const IMAGE_FILE = /\.(?:png|jpe?g|webp|gif)$/i;
+// The formats the website's image cache checks before serving (readImageInfo in packages/format).
+const IMAGE_FILE = /\.(?:png|jpe?g|webp)$/i;
 
 const TAGS = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'blockquote', 'pre', 'code', 'kbd', 'samp', 'em', 'strong', 'b', 'i',

@@ -42,8 +42,25 @@ npm run schema --workspace packages/format   # regenerate the JSON schema after 
 |---|---|
 | `packages/format` | `typescript` 5.9.3, `@types/node` 24.19.2, `ajv` 8.20.0 (tests only: checks the generated schema). No runtime dependencies |
 | `packages/checks` | `typescript`, `@types/node` as above. Runtime: only `packages/format`. Uses the `clamscan` (ClamAV) and `7z` (p7zip) tools when present; the registry workflow installs them on the runner. The two `.7z` tests are skipped where `7z` is missing |
+| `packages/indexer` (2026-10-23) | Runtime: `marked` 18.1.0 and `sanitize-html` 2.18.1 (MIT; 2.18.1 for a security fix). Dev: `@types/sanitize-html` 2.16.2 |
+| `packages/server` (2026-10-23) | Runtime: `express` 5.2.1 (MIT); the fonts `@fontsource/chakra-petch`, `@fontsource/rajdhani`, `@fontsource/jetbrains-mono` 5.3.0 (SIL Open Font License), served by the site itself. Dev: `@types/express` 5.0.6 |
+
+Dependencies are pinned to releases at least two weeks old, except for security fixes. `npm audit` should report nothing.
 
 `.github/workflows/test.yml` runs the same steps on every push and pull request, on Node 24.
+
+### Run the website on this PC
+
+Build an index from the registry, then start the server. A GitHub token raises GitHub's limit from 60 reads an hour to 5,000; the GitHub CLI's own works.
+
+```bash
+npm run build
+mkdir -p data
+GITHUB_TOKEN=$(gh auth token) node packages/indexer/bin/edgemods-index.mjs --registry registry --out data/index.db
+EDGEMODS_DATA=data EDGEMODS_SHOW_UNCHECKED=1 node packages/server/bin/edgemods-server.mjs
+```
+
+Then open http://127.0.0.1:8787. `EDGEMODS_SHOW_UNCHECKED=1` shows releases that have no release check result yet, since a PC has none; never set it on the live site. `data/` is ignored by git. The settings are in `packages/server/src/config.ts`: `EDGEMODS_PORT` (8787), `EDGEMODS_HOST` (127.0.0.1), `EDGEMODS_DATA`, `EDGEMODS_INDEX`, `EDGEMODS_PUBLIC_URL`, `EDGEMODS_CHECKS_SECRET`. Node prints an "SQLite is an experimental feature" warning on Node 24; add `--no-warnings` to hide it.
 
 ## 4. Docs site and brand images
 

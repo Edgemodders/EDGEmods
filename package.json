@@ -5,7 +5,8 @@
   "workspaces": [
     "packages/format",
     "packages/checks",
-    "packages/indexer"
+    "packages/indexer",
+    "packages/server"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
