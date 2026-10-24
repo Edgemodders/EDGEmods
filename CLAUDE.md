@@ -18,15 +18,15 @@ EDGEmods is the EDGE mod registry for Cyberpunk 2077. It is three things: a regi
 
 ## The EDGE platform
 
-EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as every repo below (GitHub organisation Edgemodders). EDGEmodders is the community and organisation; EDGE is the platform brand. Each tool has its own repo and its own `CLAUDE.md`; most are checked out as siblings of this one under `E:\Modding\Cyberpunk 2077\` (EDGEbuilder is not, on this machine: read it on GitHub). Read a sibling's notes and design before relying on it; another session may be working in it right now.
+EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as every repo below (GitHub organisation Edgemodders). EDGEmodders is the community and organisation; EDGE is the platform brand. Each tool has its own repo and its own `CLAUDE.md`; most are checked out as siblings of this one under `E:\Modding\Cyberpunk 2077\` (EDGEbuilder too, now). Read a sibling's notes and design before relying on it; another session may be working in it right now.
 
 | Tool | What it is | What EDGEmods gets from it |
 |---|---|---|
-| EDGEdeck | The mod manager extension (`edgemodders.edgedeck`; renamed from REDdeck on 2026-10-17, its local clone is still the `REDdeck` folder): library, deploy with a manifest, undo, conflicts, load order, Nexus downloads and nxm links, families of versions | **Owns installing.** EDGEmods hands downloads to it. `EDGEdeckApi` version 1 from `activate()` has `installProject`, `deploy`, `turnOff`, but no install from a downloaded archive yet: a likely first request |
+| EDGEdeck | The mod manager extension (`edgemodders.edgedeck`; renamed from REDdeck on 2026-10-17; its local clone is the `EDGEdeck` folder): library, deploy with a manifest, undo, conflicts, load order, Nexus downloads and nxm links, families of versions | **Owns installing.** EDGEmods hands downloads to it. `EDGEdeckApi` version 1 from `activate()` has `installProject`, `deploy`, `turnOff`, but no install from a downloaded archive yet: a likely first request |
 | REDcode | The editor (`edgemodders.redcode-cyberpunk`): WolvenKit projects, pack, install through EDGEdeck | **Owns the project and packing.** `REDcodeApi` version 1 ([api.md](https://edgemodders.github.io/REDcode/api.html)): `project()`, `pack()`. Its release workflow already builds a Nexus zip, a model for the mod download |
 | REDbridge | WolvenKit's engine behind JSON-RPC, GPL-3.0 | Reading a mod archive's contents for its page (`archive.openMod`), if R0 wants a file list. Only as a separate process |
 | REDnode | The runtime: mods and HTML overlays in the running game, an MCP server | REDnode packages are one kind of mod EDGEmods lists |
-| REDagent, EDGEplugin | The in-game assistant and the Claude Code plugin | Users of EDGEmods' MCP tools |
+| REDagent, EDGEchat | The in-game assistant (released, 0.3.1) and the Claude Code plugin (renamed from EDGEplugin on 2026-10-17) | Users of EDGEmods' MCP tools |
 | EDGEweb | The website https://edgemodders.ai and its wiki | **Owns the domain.** Where the mod website lives is a decision with the owner and EDGEweb |
 | EDGEkit | The branded editor and the extension pack `edgemodders.edgekit` | Bundles EDGEmods once it is released; ask with a `request` issue then |
 | EDGEwave, EDGEmat, EDGEfab, EDGEquest, EDGEbuilder | The studios: sound, materials, assets, quests, world building | Their output is what gets published as mods |
