@@ -46,6 +46,8 @@ export interface Asset {
   id: number;
   name: string;
   size: number;
+  /** https://github.com/<owner>/<repo>/releases/download/<tag>/<name>. */
+  url?: string;
 }
 
 export interface Release {
@@ -53,6 +55,8 @@ export interface Release {
   draft: boolean;
   prerelease: boolean;
   publishedAt?: string;
+  /** The release's description, markdown written by its author. */
+  body?: string;
   assets: Asset[];
 }
 
@@ -70,6 +74,14 @@ export interface GitHub {
   downloadAsset(fullName: string, assetId: number, destination: string): Promise<void>;
 }
 
+/** What the website's indexer reads, on top of GitHub. */
+export interface GitHubIndex {
+  /** A repository by GitHub's numeric id, which stays the same when it is renamed or moves owner. */
+  repoById(id: number): Promise<Repo | undefined>;
+  /** Every published release (drafts are left out), newest first, up to 1,000. */
+  releases(fullName: string): Promise<Release[]>;
+}
+
 const API = 'https://api.github.com';
 
 export class GitHubError extends Error {
@@ -79,7 +91,7 @@ export class GitHubError extends Error {
 }
 
 /** The real API, with a token (the workflow's, or the EDGEmods App's). */
-export function githubApi(token: string | undefined, fetchFn: typeof fetch = fetch): GitHub {
+export function githubApi(token: string | undefined, fetchFn: typeof fetch = fetch): GitHub & GitHubIndex {
   const headers = (accept = 'application/vnd.github+json'): Record<string, string> => ({
     Accept: accept,
     'X-GitHub-Api-Version': '2022-11-28',
@@ -99,6 +111,26 @@ export function githubApi(token: string | undefined, fetchFn: typeof fetch = fet
   };
   const account = (a: { login: string; id: number; type: string }): Account => ({ login: a.login, id: a.id, type: a.type });
   const enc = (p: string): string => p.split('/').map(encodeURIComponent).join('/');
+  const toRepo = (r: any): Repo => ({
+    id: r.id,
+    name: r.name,
+    fullName: r.full_name,
+    owner: account(r.owner),
+    private: r.private,
+    archived: r.archived,
+    disabled: r.disabled ?? false,
+    fork: r.fork,
+    defaultBranch: r.default_branch,
+    htmlUrl: r.html_url,
+  });
+  const toRelease = (r: any): Release => ({
+    tag: r.tag_name,
+    draft: r.draft,
+    prerelease: r.prerelease,
+    publishedAt: r.published_at ?? undefined,
+    body: r.body ?? undefined,
+    assets: (r.assets as any[]).map((a) => ({ id: a.id, name: a.name, size: a.size, url: a.browser_download_url })),
+  });
 
   return {
     async pullRequest(repo, number) {
@@ -126,19 +158,23 @@ export function githubApi(token: string | undefined, fetchFn: typeof fetch = fet
 
     async repo(fullName) {
       const r = await json<any>(`/repos/${fullName}`);
-      if (!r) return undefined;
-      return {
-        id: r.id,
-        name: r.name,
-        fullName: r.full_name,
-        owner: account(r.owner),
-        private: r.private,
-        archived: r.archived,
-        disabled: r.disabled ?? false,
-        fork: r.fork,
-        defaultBranch: r.default_branch,
-        htmlUrl: r.html_url,
-      };
+      return r ? toRepo(r) : undefined;
+    },
+
+    async repoById(id) {
+      const r = await json<any>(`/repositories/${id}`);
+      return r ? toRepo(r) : undefined;
+    },
+
+    async releases(fullName) {
+      const all: Release[] = [];
+      for (let page = 1; page <= 10; page++) {
+        const batch = await json<any[]>(`/repos/${fullName}/releases?per_page=100&page=${page}`);
+        if (!batch?.length) break;
+        all.push(...batch.filter((r) => !r.draft).map(toRelease));
+        if (batch.length < 100) break;
+      }
+      return all;
     },
 
     async file(fullName, ref, path) {
@@ -155,14 +191,7 @@ export function githubApi(token: string | undefined, fetchFn: typeof fetch = fet
 
     async releaseByTag(fullName, tag) {
       const r = await json<any>(`/repos/${fullName}/releases/tags/${encodeURIComponent(tag)}`);
-      if (!r) return undefined;
-      return {
-        tag: r.tag_name,
-        draft: r.draft,
-        prerelease: r.prerelease,
-        publishedAt: r.published_at ?? undefined,
-        assets: (r.assets as any[]).map((a) => ({ id: a.id, name: a.name, size: a.size })),
-      };
+      return r ? toRelease(r) : undefined;
     },
 
     async downloadAsset(fullName, assetId, destination) {

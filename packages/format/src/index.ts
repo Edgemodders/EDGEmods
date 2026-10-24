@@ -5,5 +5,7 @@ export { checkRelease, releaseTag, formatBytes, type ReleaseAsset, type ReleaseI
 export { buildSchema } from './schema.js';
 export { readImageInfo, formatFromName, type ImageFormat, type ImageInfo } from './images.js';
 export { checkModFiles, type FileEntry, type FilesResult, type ModFiles } from './files.js';
+export { compareVersions, isVersion, isPrerelease, satisfies } from './versions.js';
+export { parseChangelog, changelogSection, CHANGELOG_FILE, CHANGELOG_GROUPS, type ChangelogSection } from './changelog.js';
 // diskFiles and checkModFolder read the disk, so they live at '@edgemodders/edgemods-format/folder' and this entry
 // stays browser-safe.

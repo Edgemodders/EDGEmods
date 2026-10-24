@@ -1,0 +1,32 @@
+{
+  "name": "@edgemodders/edgemods-indexer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Builds the website's index.db from the registry and the mods' repositories: each mod's releases, metadata, page and notes.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "edgemods-index": "bin/edgemods-index.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@edgemodders/edgemods-checks": "*",
+    "@edgemodders/edgemods-format": "*",
+    "marked": "18.1.0",
+    "sanitize-html": "2.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/sanitize-html": "2.16.2",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

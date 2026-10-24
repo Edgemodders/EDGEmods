@@ -10,3 +10,8 @@ dist/
 *.dll
 *.exe
 rtti-dump*
+
+# databases built or used locally (index.db, site.db)
+*.db
+*.db-*
+*.db.building
