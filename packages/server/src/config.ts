@@ -26,7 +26,8 @@ export interface Config {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const dataDir = resolve(env.EDGEMODS_DATA ?? 'data');
-  const port = Number(env.EDGEMODS_PORT ?? 8787);
+  // 8800: TheLostRealms uses 8787 and 8790 to 8794 on the same server.
+  const port = Number(env.EDGEMODS_PORT ?? 8800);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`EDGEMODS_PORT is not a port: ${env.EDGEMODS_PORT}`);
   return {
     host: env.EDGEMODS_HOST ?? '127.0.0.1',

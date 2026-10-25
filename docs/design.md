@@ -216,7 +216,7 @@ A GitHub App cannot be installed silently: GitHub has no API that creates an ins
 | Player | Any Auth0 account: email, Google, GitHub | Download, like, see a mod's origin, browse and install in VS Code |
 | Modder | A GitHub account through Auth0, required for publishing | All of the above, plus publish and manage their mods; the extension shows their published mods |
 
-A modder who signs in with email or Google can browse but does not see their published mods, which belong to their GitHub account. The Auth0 tenant does not exist yet.
+A modder who signs in with email or Google can browse but does not see their published mods, which belong to their GitHub account. The tenants and their settings are on [their own page](auth0-setup.html) (2026-10-25): a development tenant now, a production tenant at R3h; the website as a Regular Web Application with a client secret and PKCE; the GitHub connection asking only `read:user` and the email; the server's Management API access limited to `read:users`, `update:users` and `delete:users`.
 
 **Proposed**, following TheLostRealms (details in [R0 research](research.html#thelostrealms-auth0-code)):
 

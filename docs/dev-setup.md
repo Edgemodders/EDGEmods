@@ -60,7 +60,7 @@ GITHUB_TOKEN=$(gh auth token) node packages/indexer/bin/edgemods-index.mjs --reg
 EDGEMODS_DATA=data EDGEMODS_SHOW_UNCHECKED=1 node packages/server/bin/edgemods-server.mjs
 ```
 
-Then open http://127.0.0.1:8787. `EDGEMODS_SHOW_UNCHECKED=1` shows releases that have no release check result yet, since a PC has none; never set it on the live site. `data/` is ignored by git. The settings are in `packages/server/src/config.ts`: `EDGEMODS_PORT` (8787), `EDGEMODS_HOST` (127.0.0.1), `EDGEMODS_DATA`, `EDGEMODS_INDEX`, `EDGEMODS_PUBLIC_URL`, `EDGEMODS_CHECKS_SECRET`. Node prints an "SQLite is an experimental feature" warning on Node 24; add `--no-warnings` to hide it.
+Then open http://localhost:8800 (use `localhost`, not `127.0.0.1`: sign-in returns to the address registered in Auth0). `EDGEMODS_SHOW_UNCHECKED=1` shows releases that have no release check result yet, since a PC has none; never set it on the live site. `data/` is ignored by git. The settings are in `packages/server/src/config.ts`: `EDGEMODS_PORT` (8800; TheLostRealms uses 8787 and 8790 to 8794 on the same server), `EDGEMODS_HOST` (127.0.0.1), `EDGEMODS_DATA`, `EDGEMODS_INDEX`, `EDGEMODS_PUBLIC_URL`, `EDGEMODS_CHECKS_SECRET`. Node prints an "SQLite is an experimental feature" warning on Node 24; add `--no-warnings` to hide it.
 
 ## 4. Docs site and brand images
 
