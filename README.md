@@ -17,7 +17,7 @@ The EDGEmods extension for VS Code (planned: phases R4 and R5) will browse the r
 **[Read the docs](https://edgemodders.github.io/EDGEmods/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: early build, nothing to use yet.** Built for the owner's review: R1, the mod metadata format ([edgemods.json](https://edgemodders.github.io/EDGEmods/manifest.html)); R2, the registry and its merge checks ([registry](https://edgemodders.github.io/EDGEmods/registry.html); one test mod has passed them); R3a and R3b, the indexer and a read-only website that runs on a PC ([dev setup](https://edgemodders.github.io/EDGEmods/dev-setup.html#run-the-website-on-this-pc)). Not built yet: accounts, downloads, the live site at edgemods.ai, and the EDGEmods extension. The design is draft 0.2.
+> **Status: early build, nothing to use yet.** Built for the owner's review: R1, the mod metadata format ([edgemods.json](https://edgemodders.github.io/EDGEmods/manifest.html)); R2, the registry and its merge checks ([registry](https://edgemodders.github.io/EDGEmods/registry.html); one test mod has passed them); R3a and R3b, the indexer and a read-only website that runs on a PC ([dev setup](https://edgemodders.github.io/EDGEmods/dev-setup.html#run-the-website-on-this-pc)). Not built yet: accounts, downloads, the live site at edgemods.ai, and the EDGEmods extension. Next: R3c, accounts (Auth0 sign-in, likes, the Profile tab), once the owner has set up the Auth0 tenant. There is no release yet. The design is draft 0.2.
 
 ## Repository layout
 
