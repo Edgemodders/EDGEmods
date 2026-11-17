@@ -49,3 +49,12 @@ EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as ev
 - **House style** is the HUD look from REDnode's design doc; the REDnode HUD theme (`edgemodders.rednode-hud-theme`, in REDcode's repo) is the default theme for any VS Code UI, and the mod website should look like part of the same family.
 - **Docs site:** `docs/` is the developer docs, published by GitHub Pages through `.github/workflows/pages.yml` at https://edgemodders.github.io/EDGEmods/. It is not the mod website. `docs/index.md` is the landing page (document ledger and roadmap status); add every page to `nav` in `docs/_config.yml`. Brand images come from `tools/brand/render.ps1`; re-run it when a badge changes. Record every tool install in `docs/dev-setup.md`, with versions and exact commands.
 - **Shell pitfalls on this machine:** Bash heredocs and `node -e` strings eat backslashes in Windows paths; write such text with the Write or Edit tool, or a script file.
+
+## Dashboard (EDGEweb)
+
+The platform dashboard at https://edgemodders.ai/dashboard.html draws one file in the EDGEweb repo, `docs/assets/dashboard/status.js` (plain JSON after the equals sign, one object per tool under `tools`). The owner and a managing session read it to see every tool's state, so EDGEmods's entry is kept current by the session that works on EDGEmods.
+
+- **When:** in the same piece of work as any change to EDGEmods's status: a phase built or done, a hand test added, run, passed or failed, a release, something EDGEmods starts or stops waiting on, something only the owner can do.
+- **How:** in the sibling checkout `../EDGEweb`, `git pull`, edit only EDGEmods's object, set its `checkedBy` to this session and the date, bump the `?v=` on the `status.js` script tag in `docs/dashboard.html`, commit and push to `main` (as `CyberbuildsAI`). Leave `issues`, `lastTag`, `lastTagDate`, `lastCommit` and `commitsSinceTag` alone: EDGEweb's `tools/dashboard/refresh.py` writes those.
+- **Words:** phases are `done`, `built, tests pending`, `in progress` or `planned`; tests are `passed`, `not run`, `partly run` or `failed`. The fields are described in EDGEweb's `CLAUDE.md`, under Dashboard.
+- **Honest:** never mark a test passed or a phase done that this repo's own docs do not. A test with a step still to run is `partly run`.
