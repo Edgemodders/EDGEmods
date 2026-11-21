@@ -152,8 +152,20 @@ export function fakeTenant(domain = 'tenant.test') {
   return t;
 }
 
-/** Signs in through /auth/signin and /auth/callback as the person `who` names; returns the session cookie and the callback. */
-export async function signIn(t, tenant, who, { method = 'github', returnTo = '/mods/street-cred', claims } = {}) {
+/**
+ * Signs in through /auth/signin and /auth/callback as the person `who` names, then picks a username on /welcome the
+ * first time (`username: false` skips that); returns the session cookie and the callback.
+ */
+export async function signIn(t, tenant, who, { username, ...rest } = {}) {
+  const r = await signInOnly(t, tenant, who, rest);
+  if (r.cookie && username !== false) {
+    const name = username ?? (/^[A-Za-z0-9-]{3,20}$/.test(who?.nickname ?? '') ? who.nickname : `u${(who?.sub ?? 'x').replace(/[^A-Za-z0-9]/g, '').slice(-15)}`);
+    await t.get('/welcome', { method: 'POST', headers: { origin: ORIGIN, cookie: r.cookie, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ username: name }) });
+  }
+  return r;
+}
+
+async function signInOnly(t, tenant, who, { method = 'github', returnTo = '/mods/street-cred', claims } = {}) {
   const begin = await t.get(`/auth/signin?method=${method}&return=${encodeURIComponent(returnTo)}`);
   const authorize = new URL(begin.headers.get('location'));
   const login = begin.headers.getSetCookie().find((c) => c.startsWith('edgemods_login=')).split(';')[0];

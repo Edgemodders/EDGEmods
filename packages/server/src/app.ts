@@ -10,11 +10,12 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { isVersion } from '@edgemodders/edgemods-format';
 import { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom } from './accounts.js';
 import { CONNECTIONS, type Method } from './auth0.js';
+import { HOLD_MS, Usernames } from './usernames.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
 import { html, type Html } from './html.js';
 import type { ImageCache } from './images.js';
-import { ACCOUNT_TABS, accountPage, deletedPage, NOTES, signInPage, type AccountTab, type Note } from './pages/account.js';
+import { ACCOUNT_TABS, accountPage, deletedPage, NOTES, signInPage, welcomePage, type AccountTab, type Note } from './pages/account.js';
 import { browsePage, defaultSort, homePage } from './pages/browse.js';
 import { message, type PageContext, type Viewer } from './pages/layout.js';
 import { MOD_TABS, modPage, type ModTab } from './pages/mod.js';
@@ -60,6 +61,7 @@ export function createApp(deps: AppDeps): express.Express {
   const auth0 = accounts.auth0;
   const viewerOf = deps.viewer ?? ((req: Request) => accounts.viewerOf(req));
   const CSP = csp(auth0?.config.domain);
+  const usernames = new Usernames(site, (key) => catalog.modderId(key));
   const assetVersion = createHash('sha256')
     .update(readFileSync(join(PUBLIC, 'site.css')))
     .update(readFileSync(join(PUBLIC, 'site.js')))
@@ -81,6 +83,17 @@ export function createApp(deps: AppDeps): express.Express {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     });
+    next();
+  });
+
+  // Someone signed in without a username picks one first; pages only, so files, the API and sign-out still work.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || /^\/(assets|auth|api|welcome|schema|healthz)(\/|$)/.test(req.path) || /^\/mods\/[^/]+\/images\//.test(req.path)) return next();
+    const user = accounts.userOf(req);
+    if (user && !user.username) {
+      res.redirect(303, `/welcome?return=${encodeURIComponent(safeReturn(req.originalUrl))}`);
+      return;
+    }
     next();
   });
 
@@ -205,19 +218,46 @@ export function createApp(deps: AppDeps): express.Express {
     const note = Object.keys(NOTES).includes(String(req.query.note)) ? (req.query.note as Note) : undefined;
     send(res, accountPage(ctxOf(req), tab, {
       user, method: methodOf(user.id), admin: accounts.isAdmin(user), note,
+      nextChange: usernames.nextChange(user),
       liked: catalog.likedBy(user.id, user.adult),
       mine: user.githubId ? catalog.ownedBy(user.githubId) : [],
       canDelete: Boolean(auth0?.canManage),
     }));
   });
 
-  app.post('/me/name', form, (req, res) => {
+  app.get('/welcome', (req, res) => {
+    const user = signedIn(req, res);
+    if (!user) return;
+    const returnTo = safeReturn(req.query.return);
+    if (user.username) {
+      res.redirect(303, returnTo);
+      return;
+    }
+    noStore(res);
+    send(res, welcomePage(ctxOf(req), { value: usernames.suggest(user), returnTo }));
+  });
+
+  app.post('/welcome', form, (req, res) => {
     if (refuse(req, res)) return;
     const user = signedIn(req, res);
     if (!user) return;
-    const name = field(req, 'name').normalize('NFC').replace(/\p{C}/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
-    site.setDisplayName(user.id, name || undefined);
-    backTo(res, 'profile', 'name');
+    const returnTo = safeReturn(field(req, 'return'));
+    const wanted = field(req, 'username').trim();
+    const problem = user.username ? undefined : usernames.claim(wanted, user);
+    if (problem) {
+      noStore(res);
+      send(res, welcomePage(ctxOf(req), { value: wanted.slice(0, 40), returnTo, problem }), 400);
+      return;
+    }
+    res.redirect(303, returnTo);
+  });
+
+  app.post('/me/username', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = signedIn(req, res);
+    if (!user) return;
+    const problem = usernames.claim(field(req, 'username').trim(), user);
+    backTo(res, 'profile', problem ? `username-${problem}` : 'username');
   });
 
   app.post('/me/settings', form, (req, res) => {
@@ -263,7 +303,7 @@ export function createApp(deps: AppDeps): express.Express {
       console.error(`delete account: ${err instanceof Error ? err.message : err}`);
       return backTo(res, 'profile', 'delete-failed');
     }
-    site.deleteUser(user.id);
+    site.deleteUser(user.id, HOLD_MS);
     noStore(res);
     res.append('Set-Cookie', accounts.endSession(req));
     send(res, deletedPage({ ...ctxOf(req), viewer: undefined }));

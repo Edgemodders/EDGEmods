@@ -47,7 +47,7 @@ describe('signing in', () => {
     assert.match(setCookie, /^edgemods_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Secure; Max-Age=2592000$/);
     assert.equal(tenant.exchanges.at(-1).client_secret, 'secret-1', 'the code is exchanged with the client secret');
     const me = await (await t.get('/api/v1/me', { headers: { cookie } })).json();
-    assert.deepEqual({ ...me, likes: undefined }, { signedIn: true, name: 'Bob Builder', via: 'GitHub', github: 'bob', admin: false, adult: false, likes: undefined });
+    assert.deepEqual({ ...me, likes: undefined }, { signedIn: true, name: 'bob', via: 'GitHub', github: 'bob', admin: false, adult: false, likes: undefined });
     const page = await (await t.get('/mods/street-cred', { headers: { cookie } })).text();
     assert.match(page, /<summary class="who">/);
     assert.match(page, /GitHub · bob<small class="since">Logged in since <time datetime="\d{4}-\d\d-\d\dT[^"]+Z" data-local>\d+ \w+ \d{4}, \d\d:\d\d UTC<\/time><\/small>/);
@@ -231,13 +231,68 @@ describe('the Account page', () => {
     assert.equal((await t.get('/mods/spicy', { headers: { cookie } })).status, 403);
   });
 
-  test('the name shown can be changed, and cleared back to the sign-in\'s', async () => {
-    const { cookie } = await signIn(t, tenant, BOB);
-    await post(t, '/me/name', cookie, { name: '  Bob\u0000 the   <b>Great</b> ' });
-    const page = await (await t.get('/me', { headers: { cookie } })).text();
-    assert.match(page, /<h1>Bob the &lt;b&gt;Great&lt;\/b&gt;<\/h1>/);
-    await post(t, '/me/name', cookie, { name: '' });
-    assert.match(await (await t.get('/me', { headers: { cookie } })).text(), /<h1>Bob Builder<\/h1>/);
+  test('a new account picks a username before any page, with a suggestion', async () => {
+    const zoe = { sub: 'google-oauth2|77', name: 'Zoë Kim', email: 'zoe@example.com', email_verified: true };
+    const { cookie } = await signIn(t, tenant, zoe, { method: 'google', username: false });
+    const gated = await t.get('/mods/core-lib?tab=files', { headers: { cookie } });
+    assert.equal(gated.status, 303);
+    assert.equal(gated.headers.get('location'), '/welcome?return=%2Fmods%2Fcore-lib%3Ftab%3Dfiles');
+    assert.equal((await t.get('/assets/site.css', { headers: { cookie } })).status, 200, 'files are not gated');
+    const welcome = await (await t.get('/welcome?return=%2Fmods%2Fcore-lib', { headers: { cookie } })).text();
+    assert.match(welcome, /name="username"[^>]*value="ZoeKim"/, 'made from the name, accents dropped');
+    assert.ok(welcome.includes('pattern="[A-Za-z0-9][A-Za-z0-9_\\-]{2,19}"'), 'the hyphen is escaped, as browsers need');
+    const refused = async (username) => {
+      const res = await post(t, '/welcome', cookie, { username, return: '/mods/core-lib' });
+      assert.equal(res.status, 400, username);
+      return res.text();
+    };
+    assert.match(await refused('zo'), /3 to 20 letters/);
+    assert.match(await refused('zoë'), /3 to 20 letters/, 'plain letters only');
+    assert.match(await refused('-zoe'), /3 to 20 letters/);
+    assert.match(await refused('Admin'), /kept for EDGEmods/);
+    assert.match(await refused('the-edgemods-team'), /kept for EDGEmods/);
+    assert.match(await refused('Carol'), /a modder&#39;s GitHub login/, 'carol has a mod on EDGEmods');
+    assert.match(await refused('BOB'), /a modder&#39;s GitHub login/, 'bob is a modder: kept for him, whatever the capitals');
+    t.site.upsertUser({ id: 'auth0|taken', name: 'T', emailVerified: false });
+    t.site.setUsername('auth0|taken', 'Nightcity', 0);
+    assert.match(await refused('NIGHTCITY'), /already has that username/, 'taken, whatever the capitals');
+    const ok = await post(t, '/welcome', cookie, { username: 'ZoeKim', return: '/mods/core-lib' });
+    assert.equal(ok.status, 303);
+    assert.equal(ok.headers.get('location'), '/mods/core-lib');
+    const page = await (await t.get('/mods/core-lib', { headers: { cookie } })).text();
+    assert.match(page, /<summary class="who"><span class="avatar">Z<\/span>ZoeKim<\/summary>/);
+    assert.equal((await (await t.get('/api/v1/me', { headers: { cookie } })).json()).name, 'ZoeKim');
+    assert.match(await (await t.get('/me', { headers: { cookie } })).text(), /<dt>Name<\/dt><dd>Zoë Kim <span class="dim">· only you see it/);
+  });
+
+  test('a modder is offered their own GitHub login, kept for them', async () => {
+    const carol = { sub: 'github|30', nickname: 'carol', name: 'Carol', email: 'carol@example.com', email_verified: true };
+    const { cookie } = await signIn(t, tenant, carol, { username: false });
+    assert.match(await (await t.get('/welcome', { headers: { cookie } })).text(), /value="carol"/);
+    assert.equal((await post(t, '/welcome', cookie, { username: 'Carol' })).status, 303);
+  });
+
+  test('a username changes once in 60 days; the old one is held 30 days', async () => {
+    const { cookie } = await signIn(t, tenant, { sub: 'auth0|60', name: 'Sam', email: 'sam@example.com', email_verified: true }, { method: 'email', username: 'sam-one' });
+    const change = async (username) => (await post(t, '/me/username', cookie, { username })).headers.get('location');
+    assert.equal(await change('sam-two'), '/me?tab=profile&note=username', 'the first change after the pick is allowed');
+    assert.equal(await change('sam-three'), '/me?tab=profile&note=username-wait');
+    assert.equal(await change('SAM-TWO'), '/me?tab=profile&note=username', 'changing only the capitals is not a change');
+    assert.match(await (await t.get('/me', { headers: { cookie } })).text(), /your next change is possible on/);
+    const other = await signIn(t, tenant, { sub: 'auth0|61', name: 'Other', email: 'o@example.com', email_verified: true }, { method: 'email', username: 'other-one' });
+    assert.equal((await post(t, '/me/username', other.cookie, { username: 'Sam-One' })).headers.get('location'), '/me?tab=profile&note=username-taken', 'held for its old owner');
+    // 61 days on: the hold and the wait are over.
+    t.site.db.prepare("UPDATE released_usernames SET until = '2000-01-01T00:00:00.000Z'").run();
+    t.site.db.prepare("UPDATE users SET username_changed_at = '2000-01-01T00:00:00.000Z' WHERE id = 'auth0|60'").run();
+    assert.equal(await change('sam-three'), '/me?tab=profile&note=username');
+    assert.equal((await post(t, '/me/username', other.cookie, { username: 'Sam-One' })).headers.get('location'), '/me?tab=profile&note=username');
+  });
+
+  test('the database will not give two people one username', () => {
+    t.site.upsertUser({ id: 'auth0|race1', name: 'A', emailVerified: false });
+    t.site.upsertUser({ id: 'auth0|race2', name: 'B', emailVerified: false });
+    assert.equal(t.site.setUsername('auth0|race1', 'Racer', 0), true);
+    assert.equal(t.site.setUsername('auth0|race2', 'racer', 0), false);
   });
 
   test('Download my data has the account and likes, and no session ids', async () => {

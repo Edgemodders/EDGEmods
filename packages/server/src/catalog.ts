@@ -282,6 +282,12 @@ export class Catalog {
     }));
   }
 
+  /** The GitHub user id of the modder with this login (lower case), if any mod in the index is theirs. */
+  modderId(login: string): number | undefined {
+    const row = this.db.prepare('SELECT owner_id FROM mods WHERE lower(owner_login) = ? LIMIT 1').get(login) as Row | undefined;
+    return row?.owner_id;
+  }
+
   /** One mod as anyone may see it, or undefined if it does not show (missing, hidden, or nothing checked yet). */
   mod(id: string): ModView | undefined {
     const row = this.db.prepare(`${this.shownSql()} SELECT * FROM shown WHERE id = ?`).get(id) as Row | undefined;

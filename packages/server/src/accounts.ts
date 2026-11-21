@@ -116,7 +116,7 @@ export class Accounts {
     const method = methodOf(user.id);
     return {
       id: user.id,
-      name: user.displayName ?? user.name,
+      name: user.username ?? user.name,
       github: user.githubLogin,
       githubId: user.githubId,
       via: method ? METHOD_LABELS[method] : 'Auth0',

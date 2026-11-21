@@ -54,12 +54,28 @@ const MIGRATIONS = [
      PRIMARY KEY (user_id, mod_id)
    );
    CREATE INDEX likes_mod ON likes (mod_id);`,
+  // Usernames (the owner, 2026-11-21): the name other people see, unique across EDGEmods whatever the capitals.
+  // The unique index on username_key is what makes two people unable to hold the same one. A username someone gives
+  // up is held for 30 days in released_usernames, so nobody can take it at once to pose as them.
+  `ALTER TABLE users DROP COLUMN display_name;
+   ALTER TABLE users ADD COLUMN username TEXT;           -- as the person typed it
+   ALTER TABLE users ADD COLUMN username_key TEXT;       -- lower case, for uniqueness
+   ALTER TABLE users ADD COLUMN username_changed_at TEXT; -- the last change; the first pick is not one
+   CREATE UNIQUE INDEX users_username ON users (username_key);
+   CREATE TABLE released_usernames (
+     key TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL,                -- who gave it up; they may take it back
+     until TEXT NOT NULL
+   );`,
 ];
 
 export interface User {
   id: string;
   name: string;
-  displayName?: string;
+  /** Chosen on EDGEmods; what other people see. Missing until the person picks one after their first sign-in. */
+  username?: string;
+  /** When the username last changed (the first pick does not count). */
+  usernameChangedAt?: string;
   email?: string;
   emailVerified: boolean;
   githubId?: number;
@@ -88,7 +104,8 @@ function toUser(r: Row): User {
   return {
     id: r.id,
     name: r.name,
-    displayName: r.display_name ?? undefined,
+    username: r.username ?? undefined,
+    usernameChangedAt: r.username_changed_at ?? undefined,
     email: r.email ?? undefined,
     emailVerified: Boolean(r.email_verified),
     githubId: r.github_id ?? undefined,
@@ -165,8 +182,42 @@ export class SiteStore {
     return r && toUser(r);
   }
 
-  setDisplayName(id: string, name: string | undefined): void {
-    this.db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(name ?? null, id);
+  /** Who holds a username (by its lower-case key), if anyone. */
+  usernameHolder(key: string): string | undefined {
+    return (this.db.prepare('SELECT id FROM users WHERE username_key = ?').get(key) as Row | undefined)?.id;
+  }
+
+  /** Who gave up a username that is still held, if it is. */
+  usernameHeldFor(key: string, now = new Date()): string | undefined {
+    return (this.db.prepare('SELECT user_id FROM released_usernames WHERE key = ? AND until > ?').get(key, now.toISOString()) as Row | undefined)?.user_id;
+  }
+
+  /**
+   * Gives a person a username, holding their old one for `holdMs`. Returns false if someone else holds it: the unique
+   * index decides, so two people can never both get it.
+   */
+  setUsername(userId: string, username: string, holdMs: number, now = new Date()): boolean {
+    const key = username.toLowerCase();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const old = this.user(userId)?.username;
+      this.db.prepare('DELETE FROM released_usernames WHERE until <= ? OR (key = ? AND user_id = ?)').run(now.toISOString(), key, userId);
+      const changed = Boolean(old && old.toLowerCase() !== key);
+      this.db.prepare('UPDATE users SET username = ?, username_key = ?, username_changed_at = CASE WHEN ? THEN ? ELSE username_changed_at END WHERE id = ?')
+        .run(username, key, changed ? 1 : 0, now.toISOString(), userId);
+      if (changed) this.holdUsername(old!.toLowerCase(), userId, holdMs, now);
+      this.db.exec('COMMIT');
+      return true;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      if ((err as { code?: string }).code === 'ERR_SQLITE_ERROR' && /UNIQUE/.test(String((err as Error).message))) return false;
+      throw err;
+    }
+  }
+
+  private holdUsername(key: string, userId: string, holdMs: number, now: Date): void {
+    this.db.prepare('INSERT INTO released_usernames VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET user_id = excluded.user_id, until = excluded.until')
+      .run(key, userId, new Date(now.getTime() + holdMs).toISOString());
   }
 
   setAdult(id: string, adult: boolean): void {
@@ -186,8 +237,10 @@ export class SiteStore {
     }
   }
 
-  /** Removes a person and, through the foreign keys, their sessions and likes. */
-  deleteUser(id: string): void {
+  /** Removes a person and, through the foreign keys, their sessions and likes. Their username is held like any given up. */
+  deleteUser(id: string, holdMs = 0, now = new Date()): void {
+    const old = this.user(id)?.username;
+    if (old && holdMs > 0) this.holdUsername(old.toLowerCase(), id, holdMs, now);
     this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
   }
 

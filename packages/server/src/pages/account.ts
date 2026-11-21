@@ -5,6 +5,7 @@ import type { Method } from '../auth0.js';
 import type { Card, OwnedMod } from '../catalog.js';
 import { html, type Html } from '../html.js';
 import type { User } from '../site-store.js';
+import { USERNAME_PROBLEMS, type UsernameProblem } from '../usernames.js';
 import { ago, date } from '../words.js';
 import { card } from './browse.js';
 import { message, page, type PageContext } from './layout.js';
@@ -14,7 +15,12 @@ export type AccountTab = (typeof ACCOUNT_TABS)[number];
 
 /** The notes an action leaves; fixed sentences, so nothing from the address is shown. */
 export const NOTES = {
-  name: 'Your name is saved.',
+  username: 'Your username is saved.',
+  'username-invalid': USERNAME_PROBLEMS.invalid,
+  'username-reserved': USERNAME_PROBLEMS.reserved,
+  'username-modder': USERNAME_PROBLEMS.modder,
+  'username-taken': USERNAME_PROBLEMS.taken,
+  'username-wait': USERNAME_PROBLEMS.wait,
   settings: 'Your settings are saved.',
   password: 'Auth0 is sending you an email with a link to set a new password.',
   'password-failed': 'The password email could not be sent. Try again in a few minutes.',
@@ -47,6 +53,8 @@ export function signInPage(ctx: PageContext, returnTo: string, on: boolean): Htm
 
 export interface AccountData {
   user: User;
+  /** When the username may change again, if not now. */
+  nextChange?: Date;
   method?: Method;
   admin: boolean;
   liked: Card[];
@@ -84,18 +92,19 @@ function profilePanel(d: AccountData): Html {
   const managedBy = d.method === 'github' ? 'GitHub' : d.method === 'google' ? 'Google' : undefined;
   return html`<div class="acct">
     <div class="panel"><p class="label">Profile</p>
-      <div class="row"><span class="avatar big">${(u.displayName ?? u.name).slice(0, 1).toUpperCase()}</span><div><b class="bigname">${u.displayName ?? u.name}</b>${u.email ? html`<br><span class="dim">${u.email}</span>` : ''}</div></div>
+      <div class="row"><span class="avatar big">${(u.username ?? u.name).slice(0, 1).toUpperCase()}</span><div><b class="bigname">${u.username ?? u.name}</b>${u.email ? html`<br><span class="dim">${u.email}</span>` : ''}</div></div>
       <dl class="kv">
+        <dt>Name</dt><dd>${u.name} <span class="dim">· only you see it</span></dd>
         <dt>Email</dt><dd>${u.email ?? 'None given'} ${u.email ? (u.emailVerified ? html`<span class="tag g">Verified</span>` : html`<span class="tag y">Not verified</span>`) : ''}</dd>
         <dt>Signed in with</dt><dd>${d.method === 'github' ? `GitHub · ${u.githubLogin ?? ''}` : d.method === 'google' ? 'Google' : d.method === 'email' ? 'Email and password' : 'Auth0'}</dd>
         <dt>Member since</dt><dd>${date(u.createdAt)}</dd>
         ${d.admin ? html`<dt>Role</dt><dd>Admin</dd>` : ''}
       </dl>
-      <form class="row" method="post" action="/me/name">
-        <label class="sr" for="name">Name shown on EDGEmods</label>
-        <input class="search" id="name" name="name" maxlength="60" value="${u.displayName ?? ''}" placeholder="${u.name}">
-        <button class="btn sm" type="submit">Save name</button></form>
-      <p class="dim small">The name shown on EDGEmods. Leave it empty to use the name from your sign-in.</p>
+      <form class="row" method="post" action="/me/username">
+        <label class="sr" for="username">Username</label>
+        <input class="search" id="username" name="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_\\-]{2,19}" required value="${u.username ?? ''}" autocomplete="username">
+        <button class="btn sm" type="submit">Change username</button></form>
+      <p class="dim small">Your username is what other people see on EDGEmods, never your name or email. It can change once in 60 days${d.nextChange ? html`; your next change is possible on ${date(d.nextChange.toISOString())}` : ''}. A username you give up is kept for you for 30 days.</p>
       ${managedBy
         ? html`<p class="dim small">Your email and password are managed by ${managedBy}.</p>`
         : html`<form method="post" action="/me/password"><button class="btn sm" type="submit">Email me a link to change my password</button></form>`}
@@ -135,6 +144,22 @@ function modsPanel(ctx: PageContext, d: AccountData): Html {
       <td class="n">${m.shownVersion ?? m.latest ?? ''}</td><td class="n">${m.likes.toLocaleString('en')}</td><td class="n">${ago(m.lastUpdated)}</td>
       <td class="acts">${m.shownVersion ? html`<a class="btn sm" href="/mods/${m.id}">Page</a>` : ''}</td></tr>`)}
     </tbody></table></div>`;
+}
+
+/** After the first sign-in: pick the name other people will see. */
+export function welcomePage(ctx: PageContext, f: { value: string; returnTo: string; problem?: UsernameProblem }): Html {
+  return page(ctx, { title: 'Choose your username', noindex: true }, html`<main class="wrap">
+    <div class="pagehead"><div class="eyebrow">Welcome to EDGEmods</div><h1>Choose your <span>username</span></h1>
+      <p class="lede">Your username is the name other people see on EDGEmods. Your real name and email stay private.</p></div>
+    <form class="panel welcome" method="post" action="/welcome">
+      <input type="hidden" name="return" value="${f.returnTo}">
+      <label class="label" for="username">Username</label>
+      <div class="row"><input class="search" id="username" name="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_\\-]{2,19}" required autofocus value="${f.value}" autocomplete="username"${f.problem ? html` aria-invalid="true" aria-describedby="username-problem"` : ''}>
+        <button class="btn go" type="submit">Continue</button></div>
+      ${f.problem ? html`<p class="problem" id="username-problem" role="alert">${USERNAME_PROBLEMS[f.problem]}</p>` : ''}
+      <p class="dim small">3 to 20 letters (a to z), digits, - or _. Capitals are kept as you type them, but Bob and bob are the same username. You can change it once in 60 days.</p>
+    </form>
+  </main>`);
 }
 
 export function deletedPage(ctx: PageContext): Html {

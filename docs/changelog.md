@@ -16,6 +16,7 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 
 - Sign in with GitHub, Google or an email address, through Auth0. Signed in, you can see where each mod comes from; browsing still needs no account.
 - Likes: a heart on every mod card and mod page, a Most liked sort on the browse page, and your liked mods on your account page.
+- Usernames: after your first sign-in you choose the name other people see on EDGEmods; your real name and email stay private. It can change once in 60 days.
 - Your account page: your profile, liked mods, your published mods (with a GitHub sign-in) and settings, including whether to show adult mods.
 - Download everything EDGEmods keeps about you, and delete your account.
 - Email-and-password accounts can ask for a link to change their password.
