@@ -68,6 +68,8 @@ export interface User {
   status: 'active' | 'blocked';
   createdAt: string;
   seenAt: string;
+  /** When the current session began, for a user found through a session. */
+  sessionStartedAt?: string;
 }
 
 /** What a sign-in tells us about a person. */
@@ -197,14 +199,14 @@ export class SiteStore {
 
   /** The person a session belongs to, if it is current and they are not blocked. Notes when it was last used, hourly. */
   sessionUser(hash: string, now = new Date()): User | undefined {
-    const r = this.db.prepare(`SELECT u.*, s.seen_at AS session_seen FROM sessions s JOIN users u ON u.id = s.user_id
+    const r = this.db.prepare(`SELECT u.*, s.seen_at AS session_seen, s.created_at AS session_started FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'`).get(hash, now.toISOString()) as Row | undefined;
     if (!r) return undefined;
     if (now.getTime() - Date.parse(r.session_seen) > 3_600_000) {
       this.db.prepare('UPDATE sessions SET seen_at = ? WHERE id = ?').run(now.toISOString(), hash);
       this.db.prepare('UPDATE users SET seen_at = ? WHERE id = ?').run(now.toISOString(), r.id);
     }
-    return toUser(r);
+    return { ...toUser(r), sessionStartedAt: r.session_started };
   }
 
   deleteSession(hash: string): void {

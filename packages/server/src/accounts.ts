@@ -123,6 +123,7 @@ export class Accounts {
       admin: this.isAdmin(user),
       adult: user.adult,
       liked: this.site.likes(user.id),
+      since: user.sessionStartedAt,
     };
   }
 

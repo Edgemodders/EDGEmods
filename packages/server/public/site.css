@@ -395,3 +395,4 @@ a.like { text-decoration: none; }
 }
 .hero::before { top: 14px; left: 14px; }
 .hero::after { bottom: 14px; right: 14px; }
+.menu .head .since { display: block; margin-top: 4px; font-size: 13px; color: var(--dim); white-space: nowrap; }

@@ -78,6 +78,12 @@
         .then(function () { if (button) button.disabled = false; });
     });
 
+    // Times written in UTC by the server, shown in the reader's own time zone.
+    document.querySelectorAll('time[data-local]').forEach(function (t) {
+      var d = new Date(t.getAttribute('datetime'));
+      if (!isNaN(d)) t.textContent = d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    });
+
     // The account menu closes when you click elsewhere or press Escape.
     var menu = document.querySelector('details.usermenu');
     if (menu) {

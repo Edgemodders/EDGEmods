@@ -23,6 +23,11 @@ export function date(iso: string | undefined): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+/** A date and time in UTC; site.js shows it in the reader's own time zone. */
+export function dateTime(iso: string): string {
+  return `${new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
+}
+
 export function ago(iso: string | undefined, now = Date.now()): string {
   if (!iso) return '';
   const d = (now - Date.parse(iso)) / 86400000;

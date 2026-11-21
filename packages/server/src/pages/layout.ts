@@ -2,6 +2,7 @@
 // allows only the site's own files.
 
 import { html, type Html } from '../html.js';
+import { dateTime } from '../words.js';
 
 export interface Viewer {
   /** Auth0's user id. */
@@ -17,6 +18,8 @@ export interface Viewer {
   adult: boolean;
   /** The mods they like. */
   liked?: ReadonlySet<string>;
+  /** When this session began (ISO). */
+  since?: string;
 }
 
 export interface PageContext {
@@ -74,7 +77,8 @@ function accountMenu(ctx: PageContext): Html {
   if (!v) return html`<a class="btn sm go" href="${signInHref(ctx)}">Sign in</a>`;
   return html`<details class="usermenu"><summary class="who"><span class="avatar">${v.name.slice(0, 1).toUpperCase()}</span>${v.name.split(' ')[0]}</summary>
     <div class="menu">
-      <div class="head"><b>${v.name}</b>${v.github ? html`GitHub · ${v.github}` : ''}</div>
+      <div class="head"><b>${v.name}</b>${v.github ? html`GitHub · ${v.github}` : ''}${v.since
+        ? html`<small class="since">Logged in since <time datetime="${v.since}" data-local>${dateTime(v.since)}</time></small>` : ''}</div>
       <a href="/me">Profile</a>
       <a href="/me?tab=likes">Liked mods</a>
       <a href="/me?tab=mods">${v.github ? 'My mods' : 'Publishing'}</a>
