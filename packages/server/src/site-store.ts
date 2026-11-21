@@ -95,16 +95,10 @@ const MIGRATIONS = [
      detail TEXT NOT NULL DEFAULT ''
    );
    CREATE INDEX audit_at ON audit (at);`,
+  // The owner dropped the free monthly download limit the same day (2026-11-21): it could read as a paywall on mods,
+  // which CD Projekt RED's guidelines forbid. Its settings table goes with it; free downloads are limited in speed only.
+  `DROP TABLE settings;`,
 ];
-
-/** Settings admins change on the Admin page, with their defaults. */
-export const SETTINGS = {
-  /** Different mods a free account may download in a calendar month (UTC); 0 is no limit. */
-  freeModsPerMonth: 0,
-};
-export type SettingKey = keyof typeof SETTINGS;
-/** How each setting is named on the Admin page and in the log. */
-export const SETTING_LABELS: Record<SettingKey, string> = { freeModsPerMonth: 'Free downloads per month' };
 
 /** The first moment of the month `now` is in, and of the next, in UTC. */
 export function monthOf(now: Date): { start: string; next: string } {
@@ -342,40 +336,9 @@ export class SiteStore {
     return (this.db.prepare('SELECT count(*) AS n FROM downloads WHERE mod_id = ?').get(modId) as Row).n;
   }
 
-  /** The different mods a person downloaded this calendar month (UTC). */
-  modsThisMonth(userId: string, now = new Date()): number {
-    const { start } = monthOf(now);
-    return (this.db.prepare('SELECT count(DISTINCT mod_id) AS n FROM downloads WHERE user_id = ? AND at >= ?').get(userId, start) as Row).n;
-  }
+  // ---- the audit log ----
 
-  /** Whether a person already downloaded this mod this month: downloading it again uses none of the limit. */
-  downloadedThisMonth(userId: string, modId: string, now = new Date()): boolean {
-    const { start } = monthOf(now);
-    return Boolean(this.db.prepare('SELECT 1 FROM downloads WHERE user_id = ? AND mod_id = ? AND at >= ? LIMIT 1').get(userId, modId, start));
-  }
-
-  // ---- settings and the audit log ----
-
-  setting<K extends SettingKey>(key: K): (typeof SETTINGS)[K] {
-    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as Row | undefined;
-    return row ? (JSON.parse(row.value) as (typeof SETTINGS)[K]) : SETTINGS[key];
-  }
-
-  /** Changes a setting and logs who did it, together. */
-  setSetting<K extends SettingKey>(key: K, value: (typeof SETTINGS)[K], who: string, now = new Date()): void {
-    const before = this.setting(key);
-    this.db.exec('BEGIN');
-    try {
-      this.db.prepare(`INSERT INTO settings VALUES (?, ?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, changed_by = excluded.changed_by, changed_at = excluded.changed_at`)
-        .run(key, JSON.stringify(value), who, now.toISOString());
-      this.log(who, `Changed ${SETTING_LABELS[key].toLowerCase()}`, `${JSON.stringify(before)} → ${JSON.stringify(value)}`, now);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
-  }
-
+  /** Records an admin action: who, what, and the change. */
   log(who: string, action: string, detail = '', now = new Date()): void {
     this.db.prepare('INSERT INTO audit VALUES (?, ?, ?, ?)').run(now.toISOString(), who, action, detail);
   }

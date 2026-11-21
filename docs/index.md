@@ -24,7 +24,7 @@ As of 2026-11-21.
 | R0 Design | In progress: draft 0.2 |
 | R1 Format | Built for review: schema, validator, folder and release checks, example |
 | R2 Registry and checks | Built for review: the registry folder, the merge checks, the workflow. The GitHub App is set up; the first real publish (a test mod, pull request #1) passed and merged by itself |
-| R3 Website | Prototype reviewed by the owner (2026-10-23). Started in slices R3a to R3h. Built: R3a, the indexer (`packages/indexer`); R3b, the read-only website (`packages/server`: home, browse and search, mod pages, images, the install plan); R3c, accounts (Auth0 sign-in, sessions, likes, the Account page), tested against a stand-in for Auth0; the owner signed in with GitHub, Google and email on the development tenant (2026-11-21); R3d, downloads (the download link, counts, Downloaded mods, the free monthly limit, a first Admin page), tested on a PC only: free speed through nginx waits for the deploy |
+| R3 Website | Prototype reviewed by the owner (2026-10-23). Started in slices R3a to R3h. Built: R3a, the indexer (`packages/indexer`); R3b, the read-only website (`packages/server`: home, browse and search, mod pages, images, the install plan); R3c, accounts (Auth0 sign-in, sessions, likes, the Account page), tested against a stand-in for Auth0; the owner signed in with GitHub, Google and email on the development tenant (2026-11-21); R3d, downloads (the download link, counts, Downloaded mods, a first Admin page), tested on a PC only: free speed through nginx waits for the deploy |
 | R4 Browse and install | Not started |
 | R5 Publish | Not started |
 | R6 Ship | Not started |

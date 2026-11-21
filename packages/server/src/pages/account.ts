@@ -60,8 +60,6 @@ export interface AccountData {
   admin: boolean;
   liked: Card[];
   downloaded: DownloadedMod[];
-  /** This month's different mods against the free monthly limit, when there is one. */
-  allowance?: { used: number; limit: number; resets: string };
   mine: OwnedMod[];
   canDelete: boolean;
   note?: Note;
@@ -133,16 +131,14 @@ function profilePanel(d: AccountData): Html {
 
 /** What the person downloaded, with the version they got and whether a newer one is out: an update check. */
 function downloadsPanel(d: AccountData): Html {
-  const a = d.allowance;
-  const allowance = a ? html`<p class="dim">This month: <b>${a.used} of ${a.limit}</b> different mods downloaded. The count starts again on ${date(a.resets)}. Downloading a mod again does not count twice.</p>` : '';
-  if (!d.downloaded.length) return html`${allowance}<p class="empty">Mods you download show up here, with a note when a newer version is out.</p>`;
+  if (!d.downloaded.length) return html`<p class="empty">Mods you download show up here, with a note when a newer version is out.</p>`;
   const status = (m: DownloadedMod): Html => {
     if (!m.shownVersion) return html`<span class="st plan">No longer on EDGEmods</span>`;
     return compareVersions(m.shownVersion, m.version) > 0
       ? html`<a class="st wip" href="/mods/${m.id}?tab=versions">Newer version: ${m.shownVersion}</a>`
       : html`<span class="st on">Up to date</span>`;
   };
-  return html`${allowance}<div class="tw"><table><thead><tr><th>Mod</th><th>Your version</th><th>Downloaded</th><th>Status</th></tr></thead><tbody>
+  return html`<div class="tw"><table><thead><tr><th>Mod</th><th>Your version</th><th>Downloaded</th><th>Status</th></tr></thead><tbody>
     ${d.downloaded.map((m) => html`<tr><td>${m.shownVersion ? html`<a href="/mods/${m.id}"><b>${m.name ?? m.id}</b></a>` : html`<b>${m.name ?? m.id}</b>`}<small>${m.id}</small></td>
       <td class="n">${m.version}</td><td class="n">${ago(m.downloadedAt)}</td><td>${status(m)}</td></tr>`)}
     </tbody></table></div>`;

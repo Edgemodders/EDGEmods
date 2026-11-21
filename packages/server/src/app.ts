@@ -11,9 +11,7 @@ import { isVersion } from '@edgemodders/edgemods-format';
 import { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom } from './accounts.js';
 import { CONNECTIONS, type Fetch, type Method } from './auth0.js';
 import { serveDownload } from './downloads.js';
-import { ADMIN_NOTES, adminPage, type AdminNote } from './pages/admin.js';
-import { monthOf } from './site-store.js';
-import { date } from './words.js';
+import { adminPage } from './pages/admin.js';
 import { HOLD_MS, Usernames } from './usernames.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
@@ -227,10 +225,6 @@ export function createApp(deps: AppDeps): express.Express {
       nextChange: usernames.nextChange(user),
       liked: catalog.likedBy(user.id, user.adult),
       downloaded: catalog.downloadedBy(user.id),
-      allowance: (() => {
-        const limit = site.setting('freeModsPerMonth');
-        return limit > 0 ? { used: site.modsThisMonth(user.id), limit, resets: monthOf(new Date()).next } : undefined;
-      })(),
       mine: user.githubId ? catalog.ownedBy(user.githubId) : [],
       canDelete: Boolean(auth0?.canManage),
     }));
@@ -402,7 +396,7 @@ export function createApp(deps: AppDeps): express.Express {
     }), 403);
   });
 
-  // ---- admin (R3d: the overview, the free monthly limit and the log; the rest is R3e) ----
+  // ---- admin (R3d: the overview and the log; the rest is R3e) ----
   /** The signed-in admin, or undefined after answering: sign in, or "admins only". */
   const adminOf = (req: Request, res: Response) => {
     const user = signedIn(req, res);
@@ -419,24 +413,7 @@ export function createApp(deps: AppDeps): express.Express {
     const user = adminOf(req, res);
     if (!user) return;
     noStore(res);
-    const note = Object.keys(ADMIN_NOTES).includes(String(req.query.note)) ? (req.query.note as AdminNote) : undefined;
-    send(res, adminPage(ctxOf(req), {
-      totals: site.totals(), mods: catalog.info().mods, freeModsPerMonth: site.setting('freeModsPerMonth'), audit: site.auditLog(), note,
-    }));
-  });
-
-  app.post('/admin/settings', form, (req, res) => {
-    if (refuse(req, res)) return;
-    const user = adminOf(req, res);
-    if (!user) return;
-    const text = field(req, 'freeModsPerMonth').trim();
-    const n = /^\d{1,6}$/.test(text) ? Number(text) : NaN;
-    if (!(n >= 0 && n <= 100_000)) {
-      res.redirect(303, '/admin?note=invalid');
-      return;
-    }
-    if (n !== site.setting('freeModsPerMonth')) site.setSetting('freeModsPerMonth', n, user.username ?? user.id);
-    res.redirect(303, '/admin?note=saved');
+    send(res, adminPage(ctxOf(req), { totals: site.totals(), mods: catalog.info().mods, downloads: config.downloads, audit: site.auditLog() }));
   });
 
   // Every download, from the website or (R4) the extension, comes through here: it needs a sign-in, counts the download
@@ -456,17 +433,8 @@ export function createApp(deps: AppDeps): express.Express {
       send(res, notFound(ctxOf(req)), 404);
       return;
     }
-    // The free monthly limit, set on the Admin page: different mods per calendar month; a mod already downloaded this
-    // month can be downloaded again.
-    const limit = site.setting('freeModsPerMonth');
-    if (limit > 0 && !site.downloadedThisMonth(user.id, m.id) && site.modsThisMonth(user.id) >= limit) {
-      send(res, message(ctxOf(req), {
-        title: 'Monthly limit reached', eyebrow: m.name, heading: html`Monthly limit <span>reached</span>`,
-        lede: `You have downloaded ${limit} different mods this month, the most a free account can. Mods you already downloaded this month can be downloaded again; new ones from ${date(monthOf(new Date()).next)}.`,
-        actions: html`<a class="btn go" href="/me?tab=downloads">Your downloaded mods</a><a class="btn" href="/mods/${m.id}">Back to ${m.name}</a>`,
-      }), 429);
-      return;
-    }
+    // No limit on how many: every mod stays free to download (CD Projekt RED allows no paywalls on mods; the owner
+    // dropped a monthly limit for that reason, 2026-11-21). Free downloads are limited in speed only, by nginx.
     let served;
     try {
       served = await serveDownload(config.downloads, { repo: m.repo, tag: release.tag, name: file.name, assetId: file.assetId, url: file.url }, deps.githubFetch);

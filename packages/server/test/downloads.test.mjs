@@ -1,4 +1,4 @@
-// R3d: the download link, counts, the Downloaded mods tab, the free monthly limit and the first Admin page.
+// R3d: the download link, counts, the Downloaded mods tab and the first Admin page.
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { loadConfig } from '../dist/index.js';
@@ -80,31 +80,22 @@ describe('downloading', () => {
     const player = await as(6);
     assert.equal((await t.get('/admin', { headers: { cookie: player } })).status, 403);
     assert.ok(!(await (await t.get('/mods', { headers: { cookie: player } })).text()).includes('href="/admin"'));
-    assert.equal((await post(t, '/admin/settings', player, { freeModsPerMonth: '5' })).status, 403);
     const admin = (await signIn(t, tenant, ADMIN, { method: 'google', username: 'ada' })).cookie;
+    t.site.log('ada', 'Hid a mod', 'street-cred');
     const page = await (await t.get('/admin', { headers: { cookie: admin } })).text();
     assert.match(page, /<h1>Ad<span>min<\/span><\/h1>/);
-    assert.match(page, /name="freeModsPerMonth"[^>]*value="0"/);
+    assert.match(page, /<p class="label">Free speed<\/p><div class="big">3 MB\/s<\/div><small>not applied: this server sends downloads to GitHub<\/small>/);
+    assert.match(page, /<td>ada<\/td><td>Hid a mod<\/td><td>street-cred<\/td>/, 'the log');
+    assert.ok(!page.includes('freeModsPerMonth'), 'no monthly limit');
     assert.match(await (await t.get('/mods', { headers: { cookie: admin } })).text(), /<a href="\/admin">Admin<\/a>/);
   });
 
-  test('the free monthly limit: different mods, set on the Admin page and logged', async () => {
-    const admin = (await signIn(t, tenant, ADMIN, { method: 'google', username: 'ada' })).cookie;
-    assert.equal((await post(t, '/admin/settings', admin, { freeModsPerMonth: '1' }, { origin: 'https://evil.test' })).status, 403);
-    assert.equal((await post(t, '/admin/settings', admin, { freeModsPerMonth: '-1' })).headers.get('location'), '/admin?note=invalid');
-    assert.equal((await post(t, '/admin/settings', admin, { freeModsPerMonth: '1' })).headers.get('location'), '/admin?note=saved');
-    assert.match(await (await t.get('/admin', { headers: { cookie: admin } })).text(), /<td>ada<\/td><td>Changed free downloads per month<\/td><td>0 → 1<\/td>/);
-
+  test('no limit on how many mods: every mod stays free to download', async () => {
     const cookie = await as(7);
-    assert.equal((await t.get('/download/street-cred/1.0.0/street-cred-1.0.0.zip', { headers: { cookie } })).status, 302);
-    const blocked = await t.get('/download/core-lib/1.2.0/core-lib-1.2.0.zip', { headers: { cookie } });
-    assert.equal(blocked.status, 429);
-    assert.match(await blocked.text(), /Monthly limit <span>reached<\/span>/);
-    assert.equal((await t.get('/download/street-cred/1.0.0/street-cred-1.0.0.zip', { headers: { cookie } })).status, 302, 'the same mod again is fine');
-    assert.match(await (await t.get('/me?tab=downloads', { headers: { cookie } })).text(), /This month: <b>1 of 1<\/b> different mods downloaded/);
-
-    await post(t, '/admin/settings', admin, { freeModsPerMonth: '0' });
-    assert.equal((await t.get('/download/core-lib/1.2.0/core-lib-1.2.0.zip', { headers: { cookie } })).status, 302, '0 is no limit');
+    for (const path of ['/download/street-cred/1.0.0/street-cred-1.0.0.zip', '/download/core-lib/1.2.0/core-lib-1.2.0.zip', '/download/core-lib/1.0.0/core-lib-1.0.0.zip', '/download/pinned-hud/1.0.0/pinned-hud-1.0.0.zip']) {
+      assert.equal((await t.get(path, { headers: { cookie } })).status, 302, path);
+    }
+    assert.equal((await t.get('/admin/settings', { method: 'POST', headers: { cookie, origin: ORIGIN } })).status, 404, 'no limit setting');
   });
 });
 

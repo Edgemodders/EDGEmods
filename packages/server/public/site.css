@@ -399,8 +399,6 @@ a.like { text-decoration: none; }
 .welcome { max-width: 640px; margin-top: 18px; }
 .welcome .search { max-width: 320px; }
 .problem { color: var(--red); margin: 10px 0 0; }
-.adminform { max-width: 720px; }
-.adminform .search { max-width: 140px; }
 td.n.left { text-align: left; }
 a.st { text-decoration: none; }
 a.st:hover { border-color: var(--yellow); }
