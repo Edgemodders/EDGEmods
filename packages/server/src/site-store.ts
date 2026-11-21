@@ -1,5 +1,6 @@
 // site.db: what EDGEmods itself knows, kept across index rebuilds and backed up by Litestream (docs/design.md,
-// "Two kinds of data"). R3b: release check results and moderation. R3c: people, sessions and likes. Downloads next.
+// "Two kinds of data"). R3b: release check results and moderation. R3c: people, sessions, likes and usernames. R3d:
+// downloads.
 
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -67,7 +68,50 @@ const MIGRATIONS = [
      user_id TEXT NOT NULL,                -- who gave it up; they may take it back
      until TEXT NOT NULL
    );`,
+  // R3d: downloads, counted once per person, file and day (docs/design.md, "Downloads"). A deleted account's rows
+  // lose their person but stay, so mods' counts do not drop.
+  `CREATE TABLE downloads (
+     user_id TEXT REFERENCES users (id) ON DELETE SET NULL,
+     mod_id TEXT NOT NULL,
+     version TEXT NOT NULL,
+     file TEXT NOT NULL,
+     day TEXT NOT NULL,                    -- YYYY-MM-DD, UTC
+     at TEXT NOT NULL
+   );
+   CREATE UNIQUE INDEX downloads_once ON downloads (user_id, mod_id, version, file, day);
+   CREATE INDEX downloads_mod ON downloads (mod_id);
+   CREATE INDEX downloads_user ON downloads (user_id, at);
+   -- Settings admins change on the Admin page, and the log of every admin action (who, what, when).
+   CREATE TABLE settings (
+     key TEXT PRIMARY KEY,
+     value TEXT NOT NULL,
+     changed_by TEXT NOT NULL,
+     changed_at TEXT NOT NULL
+   );
+   CREATE TABLE audit (
+     at TEXT NOT NULL,
+     who TEXT NOT NULL,                    -- the admin's username, or their user id if they have none
+     action TEXT NOT NULL,
+     detail TEXT NOT NULL DEFAULT ''
+   );
+   CREATE INDEX audit_at ON audit (at);`,
 ];
+
+/** Settings admins change on the Admin page, with their defaults. */
+export const SETTINGS = {
+  /** Different mods a free account may download in a calendar month (UTC); 0 is no limit. */
+  freeModsPerMonth: 0,
+};
+export type SettingKey = keyof typeof SETTINGS;
+/** How each setting is named on the Admin page and in the log. */
+export const SETTING_LABELS: Record<SettingKey, string> = { freeModsPerMonth: 'Free downloads per month' };
+
+/** The first moment of the month `now` is in, and of the next, in UTC. */
+export function monthOf(now: Date): { start: string; next: string } {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return { start: start.toISOString(), next: next.toISOString() };
+}
 
 export interface User {
   id: string;
@@ -285,13 +329,81 @@ export class SiteStore {
     return (this.db.prepare('SELECT count(*) AS n FROM likes WHERE mod_id = ?').get(modId) as Row).n;
   }
 
+  // ---- downloads ----
+
+  /** Counts a download; the same person, file and day count once. Returns whether it counted. */
+  recordDownload(userId: string, modId: string, version: string, file: string, now = new Date()): boolean {
+    const at = now.toISOString();
+    const r = this.db.prepare('INSERT INTO downloads VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING').run(userId, modId, version, file, at.slice(0, 10), at);
+    return Number(r.changes) > 0;
+  }
+
+  downloadCount(modId: string): number {
+    return (this.db.prepare('SELECT count(*) AS n FROM downloads WHERE mod_id = ?').get(modId) as Row).n;
+  }
+
+  /** The different mods a person downloaded this calendar month (UTC). */
+  modsThisMonth(userId: string, now = new Date()): number {
+    const { start } = monthOf(now);
+    return (this.db.prepare('SELECT count(DISTINCT mod_id) AS n FROM downloads WHERE user_id = ? AND at >= ?').get(userId, start) as Row).n;
+  }
+
+  /** Whether a person already downloaded this mod this month: downloading it again uses none of the limit. */
+  downloadedThisMonth(userId: string, modId: string, now = new Date()): boolean {
+    const { start } = monthOf(now);
+    return Boolean(this.db.prepare('SELECT 1 FROM downloads WHERE user_id = ? AND mod_id = ? AND at >= ? LIMIT 1').get(userId, modId, start));
+  }
+
+  // ---- settings and the audit log ----
+
+  setting<K extends SettingKey>(key: K): (typeof SETTINGS)[K] {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as Row | undefined;
+    return row ? (JSON.parse(row.value) as (typeof SETTINGS)[K]) : SETTINGS[key];
+  }
+
+  /** Changes a setting and logs who did it, together. */
+  setSetting<K extends SettingKey>(key: K, value: (typeof SETTINGS)[K], who: string, now = new Date()): void {
+    const before = this.setting(key);
+    this.db.exec('BEGIN');
+    try {
+      this.db.prepare(`INSERT INTO settings VALUES (?, ?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, changed_by = excluded.changed_by, changed_at = excluded.changed_at`)
+        .run(key, JSON.stringify(value), who, now.toISOString());
+      this.log(who, `Changed ${SETTING_LABELS[key].toLowerCase()}`, `${JSON.stringify(before)} → ${JSON.stringify(value)}`, now);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  log(who: string, action: string, detail = '', now = new Date()): void {
+    this.db.prepare('INSERT INTO audit VALUES (?, ?, ?, ?)').run(now.toISOString(), who, action, detail);
+  }
+
+  auditLog(limit = 50): { at: string; who: string; action: string; detail: string }[] {
+    return (this.db.prepare('SELECT * FROM audit ORDER BY at DESC, rowid DESC LIMIT ?').all(limit) as Row[]).map((r) => ({ at: r.at, who: r.who, action: r.action, detail: r.detail }));
+  }
+
+  /** Counts for the Admin page's overview. */
+  totals(now = new Date()): { accounts: number; downloadsThisMonth: number; downloaders: number; likes: number } {
+    const { start } = monthOf(now);
+    const one = (sql: string, ...p: string[]): number => (this.db.prepare(sql).get(...p) as Row).n;
+    return {
+      accounts: one('SELECT count(*) AS n FROM users'),
+      downloadsThisMonth: one('SELECT count(*) AS n FROM downloads WHERE at >= ?', start),
+      downloaders: one('SELECT count(DISTINCT user_id) AS n FROM downloads WHERE at >= ?', start),
+      likes: one('SELECT count(*) AS n FROM likes'),
+    };
+  }
+
   /** Everything EDGEmods keeps about a person, for "Download my data". */
   dataOf(userId: string): Record<string, unknown> | undefined {
     const user = this.user(userId);
     if (!user) return undefined;
     const likes = this.db.prepare('SELECT mod_id AS mod, created_at AS likedAt FROM likes WHERE user_id = ? ORDER BY created_at').all(userId);
     const sessions = this.db.prepare('SELECT created_at AS signedInAt, expires_at AS expiresAt, seen_at AS lastUsedAt FROM sessions WHERE user_id = ? ORDER BY created_at').all(userId);
-    return { account: user, likes, sessions };
+    const downloads = this.db.prepare('SELECT mod_id AS mod, version, file, at AS downloadedAt FROM downloads WHERE user_id = ? ORDER BY at').all(userId);
+    return { account: user, likes, downloads, sessions };
   }
 
   close(): void {

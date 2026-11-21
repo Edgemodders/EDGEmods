@@ -52,6 +52,7 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
           <dt>Version</dt><dd>${shown.version}</dd>
           <dt>Updated</dt><dd>${date(shown.publishedAt)}</dd>
           <dt>Published</dt><dd>${date(m.firstPublished)}</dd>
+          <dt>Downloads</dt><dd>${m.downloads.toLocaleString('en')}</dd>
           <dt>Size</dt><dd>${bytes(shown.size)}</dd>
           ${shown.gameVersion ? html`<dt>Game</dt><dd>Tested with ${shown.gameVersion}</dd>` : ''}
           <dt>License</dt><dd>${m.license}</dd>

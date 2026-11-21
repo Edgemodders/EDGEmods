@@ -9,7 +9,11 @@ import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isVersion } from '@edgemodders/edgemods-format';
 import { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom } from './accounts.js';
-import { CONNECTIONS, type Method } from './auth0.js';
+import { CONNECTIONS, type Fetch, type Method } from './auth0.js';
+import { serveDownload } from './downloads.js';
+import { ADMIN_NOTES, adminPage, type AdminNote } from './pages/admin.js';
+import { monthOf } from './site-store.js';
+import { date } from './words.js';
 import { HOLD_MS, Usernames } from './usernames.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
@@ -32,6 +36,8 @@ export interface AppDeps {
   accounts?: Accounts;
   /** For tests of pages: who is signed in, instead of a session. */
   viewer?: (req: Request) => Viewer | undefined;
+  /** For tests: stands in for GitHub when asking for a file's address (nginx downloads). */
+  githubFetch?: Fetch;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -220,6 +226,11 @@ export function createApp(deps: AppDeps): express.Express {
       user, method: methodOf(user.id), admin: accounts.isAdmin(user), note,
       nextChange: usernames.nextChange(user),
       liked: catalog.likedBy(user.id, user.adult),
+      downloaded: catalog.downloadedBy(user.id),
+      allowance: (() => {
+        const limit = site.setting('freeModsPerMonth');
+        return limit > 0 ? { used: site.modsThisMonth(user.id), limit, resets: monthOf(new Date()).next } : undefined;
+      })(),
       mine: user.githubId ? catalog.ownedBy(user.githubId) : [],
       canDelete: Boolean(auth0?.canManage),
     }));
@@ -389,6 +400,96 @@ export function createApp(deps: AppDeps): express.Express {
       lede: 'This link opens a file in the mod\'s repository. Seeing where a mod comes from needs a free account.',
       actions: html`<a class="btn go" href="/signin">Sign in</a><a class="btn" href="/mods/${m.id}">Back to ${m.name}</a>`,
     }), 403);
+  });
+
+  // ---- admin (R3d: the overview, the free monthly limit and the log; the rest is R3e) ----
+  /** The signed-in admin, or undefined after answering: sign in, or "admins only". */
+  const adminOf = (req: Request, res: Response) => {
+    const user = signedIn(req, res);
+    if (!user) return undefined;
+    if (accounts.isAdmin(user)) return user;
+    send(res, message(ctxOf(req), {
+      title: 'Admins only', eyebrow: 'Admin', heading: html`Admins <span>only</span>`,
+      lede: 'This page is for EDGEmods admins: the verified email addresses in the server\'s settings.',
+    }), 403);
+    return undefined;
+  };
+
+  app.get('/admin', (req, res) => {
+    const user = adminOf(req, res);
+    if (!user) return;
+    noStore(res);
+    const note = Object.keys(ADMIN_NOTES).includes(String(req.query.note)) ? (req.query.note as AdminNote) : undefined;
+    send(res, adminPage(ctxOf(req), {
+      totals: site.totals(), mods: catalog.info().mods, freeModsPerMonth: site.setting('freeModsPerMonth'), audit: site.auditLog(), note,
+    }));
+  });
+
+  app.post('/admin/settings', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = adminOf(req, res);
+    if (!user) return;
+    const text = field(req, 'freeModsPerMonth').trim();
+    const n = /^\d{1,6}$/.test(text) ? Number(text) : NaN;
+    if (!(n >= 0 && n <= 100_000)) {
+      res.redirect(303, '/admin?note=invalid');
+      return;
+    }
+    if (n !== site.setting('freeModsPerMonth')) site.setSetting('freeModsPerMonth', n, user.username ?? user.id);
+    res.redirect(303, '/admin?note=saved');
+  });
+
+  // Every download, from the website or (R4) the extension, comes through here: it needs a sign-in, counts the download
+  // once per person, file and day, and serves the file (src/downloads.ts). Only files of releases that show.
+  app.get('/download/:id/:version/:file', async (req, res) => {
+    res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+    const id = String(req.params.id);
+    const user = accounts.userOf(req);
+    if (!user) {
+      res.redirect(303, `/signin?return=${encodeURIComponent(`/mods/${encodeURIComponent(id)}?tab=files`)}`);
+      return;
+    }
+    const m = catalog.mod(id);
+    const release = m && (!m.adult || user.adult) ? m.releases.find((r) => r.version === req.params.version) : undefined;
+    const file = release?.files.find((f) => f.name === req.params.file);
+    if (!m || !release || !file) {
+      send(res, notFound(ctxOf(req)), 404);
+      return;
+    }
+    // The free monthly limit, set on the Admin page: different mods per calendar month; a mod already downloaded this
+    // month can be downloaded again.
+    const limit = site.setting('freeModsPerMonth');
+    if (limit > 0 && !site.downloadedThisMonth(user.id, m.id) && site.modsThisMonth(user.id) >= limit) {
+      send(res, message(ctxOf(req), {
+        title: 'Monthly limit reached', eyebrow: m.name, heading: html`Monthly limit <span>reached</span>`,
+        lede: `You have downloaded ${limit} different mods this month, the most a free account can. Mods you already downloaded this month can be downloaded again; new ones from ${date(monthOf(new Date()).next)}.`,
+        actions: html`<a class="btn go" href="/me?tab=downloads">Your downloaded mods</a><a class="btn" href="/mods/${m.id}">Back to ${m.name}</a>`,
+      }), 429);
+      return;
+    }
+    let served;
+    try {
+      served = await serveDownload(config.downloads, { repo: m.repo, tag: release.tag, name: file.name, assetId: file.assetId, url: file.url }, deps.githubFetch);
+    } catch (err) {
+      console.error(`download ${m.id} ${release.version} ${file.name}: ${err instanceof Error ? err.message : err}`);
+      send(res, message(ctxOf(req), {
+        title: 'Download did not start', eyebrow: m.name, heading: html`Download did not <span>start</span>`,
+        lede: 'GitHub, where the file lives, did not answer just now. Try again in a moment.',
+        actions: html`<a class="btn go" href="${req.originalUrl}">Try again</a><a class="btn" href="/mods/${m.id}?tab=files">Back to ${m.name}</a>`,
+      }), 502);
+      return;
+    }
+    // HEAD asks about the file without fetching it, so it does not count.
+    if (req.method === 'GET') site.recordDownload(user.id, m.id, release.version, file.name);
+    if (served.kind === 'redirect') {
+      res.redirect(302, served.location);
+      return;
+    }
+    res.set({
+      'X-Accel-Redirect': served.accelRedirect,
+      'X-Accel-Limit-Rate': String(served.limitRate),
+      'Content-Disposition': `attachment; filename="${served.filename.replace(/["\\\r\n]/g, '_')}"`,
+    }).end();
   });
 
   // ---- API ----

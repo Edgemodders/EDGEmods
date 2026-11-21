@@ -2,7 +2,8 @@
 // action is a form that works without JavaScript and comes back here with a short note.
 
 import type { Method } from '../auth0.js';
-import type { Card, OwnedMod } from '../catalog.js';
+import { compareVersions } from '@edgemodders/edgemods-format';
+import type { Card, DownloadedMod, OwnedMod } from '../catalog.js';
 import { html, type Html } from '../html.js';
 import type { User } from '../site-store.js';
 import { USERNAME_PROBLEMS, type UsernameProblem } from '../usernames.js';
@@ -10,7 +11,7 @@ import { ago, date } from '../words.js';
 import { card } from './browse.js';
 import { message, page, type PageContext } from './layout.js';
 
-export const ACCOUNT_TABS = ['profile', 'likes', 'mods', 'settings'] as const;
+export const ACCOUNT_TABS = ['profile', 'likes', 'downloads', 'mods', 'settings'] as const;
 export type AccountTab = (typeof ACCOUNT_TABS)[number];
 
 /** The notes an action leaves; fixed sentences, so nothing from the address is shown. */
@@ -58,6 +59,9 @@ export interface AccountData {
   method?: Method;
   admin: boolean;
   liked: Card[];
+  downloaded: DownloadedMod[];
+  /** This month's different mods against the free monthly limit, when there is one. */
+  allowance?: { used: number; limit: number; resets: string };
   mine: OwnedMod[];
   canDelete: boolean;
   note?: Note;
@@ -68,6 +72,7 @@ export function accountPage(ctx: PageContext, tab: AccountTab, d: AccountData): 
   const tabs: [AccountTab, string][] = [
     ['profile', 'Profile'],
     ['likes', `Liked mods (${d.liked.length})`],
+    ['downloads', `Downloaded mods (${d.downloaded.length})`],
     ['mods', v.github ? `My mods (${d.mine.length})` : 'Publishing'],
     ['settings', 'Settings'],
   ];
@@ -78,6 +83,7 @@ export function accountPage(ctx: PageContext, tab: AccountTab, d: AccountData): 
     <div class="tabs" id="tabs" role="tablist">${tabs.map(([key, label]) => html`<a role="tab" href="/me?tab=${key}" data-tab="${key}" data-default="profile" aria-selected="${key === tab ? 'true' : 'false'}" aria-controls="tab-${key}">${label}</a>`)}</div>
     ${panel('profile', profilePanel(d))}
     ${panel('likes', d.liked.length ? html`<div class="cards">${d.liked.map((c) => card(ctx, c))}</div>` : html`<p class="empty">Mods you like show up here. Press the heart on any mod.</p>`)}
+    ${panel('downloads', downloadsPanel(d))}
     ${panel('mods', modsPanel(ctx, d))}
     ${panel('settings', html`<form class="panel" method="post" action="/me/settings">
       <p class="label">Content</p>
@@ -123,6 +129,23 @@ function profilePanel(d: AccountData): Html {
     </div>
     <form method="post" action="/auth/signout"><button class="btn sm" type="submit">Sign out</button></form>
   </div>`;
+}
+
+/** What the person downloaded, with the version they got and whether a newer one is out: an update check. */
+function downloadsPanel(d: AccountData): Html {
+  const a = d.allowance;
+  const allowance = a ? html`<p class="dim">This month: <b>${a.used} of ${a.limit}</b> different mods downloaded. The count starts again on ${date(a.resets)}. Downloading a mod again does not count twice.</p>` : '';
+  if (!d.downloaded.length) return html`${allowance}<p class="empty">Mods you download show up here, with a note when a newer version is out.</p>`;
+  const status = (m: DownloadedMod): Html => {
+    if (!m.shownVersion) return html`<span class="st plan">No longer on EDGEmods</span>`;
+    return compareVersions(m.shownVersion, m.version) > 0
+      ? html`<a class="st wip" href="/mods/${m.id}?tab=versions">Newer version: ${m.shownVersion}</a>`
+      : html`<span class="st on">Up to date</span>`;
+  };
+  return html`${allowance}<div class="tw"><table><thead><tr><th>Mod</th><th>Your version</th><th>Downloaded</th><th>Status</th></tr></thead><tbody>
+    ${d.downloaded.map((m) => html`<tr><td>${m.shownVersion ? html`<a href="/mods/${m.id}"><b>${m.name ?? m.id}</b></a>` : html`<b>${m.name ?? m.id}</b>`}<small>${m.id}</small></td>
+      <td class="n">${m.version}</td><td class="n">${ago(m.downloadedAt)}</td><td>${status(m)}</td></tr>`)}
+    </tbody></table></div>`;
 }
 
 function modsPanel(ctx: PageContext, d: AccountData): Html {

@@ -81,8 +81,10 @@ function accountMenu(ctx: PageContext): Html {
         ? html`<small class="since">Logged in since <time datetime="${v.since}" data-local>${dateTime(v.since)}</time></small>` : ''}</div>
       <a href="/me">Profile</a>
       <a href="/me?tab=likes">Liked mods</a>
+      <a href="/me?tab=downloads">Downloaded mods</a>
       <a href="/me?tab=mods">${v.github ? 'My mods' : 'Publishing'}</a>
       <a href="/me?tab=settings">Settings</a>
+      ${v.admin ? html`<a href="/admin">Admin</a>` : ''}
       <form method="post" action="/auth/signout"><button type="submit">Sign out</button></form>
     </div></details>`;
 }

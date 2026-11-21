@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { Requirement } from '@edgemodders/edgemods-format';
 import { INDEX_SCHEMA_VERSION } from '@edgemodders/edgemods-indexer';
 
-export const SORTS = ['relevance', 'updated', 'new', 'likes', 'name'] as const;
+export const SORTS = ['relevance', 'updated', 'new', 'downloads', 'likes', 'name'] as const;
 export type Sort = (typeof SORTS)[number];
 export const PAGE_SIZE = 24;
 
@@ -60,6 +60,18 @@ export interface Card {
   runsCode: boolean;
   card: string;
   likes: number;
+  downloads: number;
+}
+
+/** A mod in a person's download history: the version they got last, and what shows now. */
+export interface DownloadedMod {
+  id: string;
+  /** Missing when the mod is no longer in the index at all. */
+  name?: string;
+  version: string;
+  downloadedAt: string;
+  /** The version players see now; missing when the mod no longer shows. */
+  shownVersion?: string;
 }
 
 /** A mod in its owner's list, whether or not it shows yet. */
@@ -173,7 +185,8 @@ export class Catalog {
         SELECT m.*, v.version, v.size, v.published_at AS shown_at, v.requirements AS reqs,
           EXISTS (SELECT 1 FROM site.release_checks c, json_each(c.downloads) d
                   WHERE c.mod_id = m.id AND c.version = v.version AND json_array_length(d.value, '$.contents.runsCode') > 0) AS runs_code,
-          (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes
+          (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes,
+          (SELECT count(*) FROM site.downloads d WHERE d.mod_id = m.id) AS downloads
         FROM mods m JOIN visible v ON v.mod_id = m.id AND v.pick = 1
         WHERE NOT EXISTS (SELECT 1 FROM site.moderation x WHERE x.mod_id = m.id AND x.status <> 'visible')
       )`;
@@ -214,6 +227,7 @@ export class Catalog {
       relevance: match ? '(SELECT bm25(mods_search) FROM mods_search WHERE mods_search MATCH :match AND mods_search.id = s.id), s.shown_at DESC' : 's.shown_at DESC',
       updated: 's.shown_at DESC',
       new: 's.first_published DESC',
+      downloads: 's.downloads DESC, s.shown_at DESC',
       likes: 's.likes DESC, s.shown_at DESC',
       name: 's.name COLLATE NOCASE',
     }[query.sort];
@@ -268,6 +282,20 @@ export class Catalog {
     const rows = this.db.prepare(`${this.shownSql()} SELECT s.* FROM shown s JOIN site.likes l ON l.mod_id = s.id AND l.user_id = ?
       ${adult ? '' : 'WHERE s.adult = 0'} ORDER BY l.created_at DESC LIMIT 200`).all(userId) as Row[];
     return rows.map(toCard);
+  }
+
+  /**
+   * The mods a person downloaded, most recent first, with the version they got last and the one that shows now. Their
+   * own history, so mods that no longer show stay in it, named if the index still has them.
+   */
+  downloadedBy(userId: string): DownloadedMod[] {
+    const rows = this.db.prepare(`${this.shownSql()}, mine AS (
+        SELECT mod_id, version, at, ROW_NUMBER() OVER (PARTITION BY mod_id ORDER BY at DESC) AS n FROM site.downloads WHERE user_id = ?
+      )
+      SELECT d.mod_id, d.version, d.at, m.name, s.version AS shown_version
+      FROM mine d LEFT JOIN mods m ON m.id = d.mod_id LEFT JOIN shown s ON s.id = d.mod_id
+      WHERE d.n = 1 ORDER BY d.at DESC LIMIT 200`).all(userId) as Row[];
+    return rows.map((r) => ({ id: r.mod_id, name: r.name ?? undefined, version: r.version, downloadedAt: r.at, shownVersion: r.shown_version ?? undefined }));
   }
 
   /** A modder's mods by their GitHub user id, including those that do not show yet. */
@@ -353,6 +381,7 @@ function toCard(r: Row): Card {
     runsCode: Boolean(r.runs_code),
     card: r.card,
     likes: r.likes ?? 0,
+    downloads: r.downloads ?? 0,
   };
 }
 

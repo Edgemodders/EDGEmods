@@ -64,6 +64,8 @@ Then open http://localhost:8800 (use `localhost`, not `127.0.0.1`: sign-in retur
 
 **Sign-in on this PC.** The server reads a `.env` file from the folder it is started in (the checkout's top; `EDGEMODS_ENV_FILE` names another), which git ignores. [Auth0 setup](auth0-setup.html), step 7, lists what goes in it. Settings already in the environment win over the file. At start the server prints `Sign-in: on, with <tenant>` or which setting is missing. Without the file the site runs without accounts and says so on the sign-in page. Sign in at http://localhost:8800/signin; your account page is http://localhost:8800/me.
 
+**Downloads.** On a PC, a download sends the browser straight to the file on GitHub (`EDGEMODS_DOWNLOADS=redirect`, the default). The live server uses `EDGEMODS_DOWNLOADS=nginx`: nginx streams the file from GitHub at `EDGEMODS_FREE_SPEED` MB a second (3 to start), through the `location` block in `deploy/nginx/edgemods-downloads.conf`, which is untested until the deploy (R3h). `EDGEMODS_GITHUB_TOKEN` raises GitHub's limit when the server asks for a file's address. Admins (the verified emails in `EDGEMODS_ADMINS`) set the free monthly download limit at http://localhost:8800/admin.
+
 ## 4. Docs site and brand images
 
 The developer docs at https://edgemodders.github.io/EDGEmods/ are built by `.github/workflows/pages.yml` on every push to `main`. **Settings > Pages > Source** must be **GitHub Actions**. The mod website is `packages/server` (section 3), not this site.

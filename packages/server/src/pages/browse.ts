@@ -25,6 +25,7 @@ export function card(ctx: PageContext, c: Card, now = Date.now()): Html {
     <div class="foot">
       <span class="stat" title="Size">${ICON.box}${bytes(c.size)}</span>
       <span class="stat" title="Version">v${c.version}</span>
+      <span class="stat" title="Downloads">${ICON.down}${c.downloads.toLocaleString('en')}</span>
       <span class="stat" title="Updated ${date(c.lastUpdated)}">${ICON.clock}${ago(c.lastUpdated, now)}</span>
       ${likeButton(ctx, c.id, c.likes)}
     </div></article>`;
@@ -58,7 +59,7 @@ export function homePage(ctx: PageContext, catalog: Catalog): Html {
     </main>`);
 }
 
-const SORT_LABELS: Record<Sort, string> = { relevance: 'Best match', updated: 'Recently updated', new: 'Newest', likes: 'Most liked', name: 'Name A–Z' };
+const SORT_LABELS: Record<Sort, string> = { relevance: 'Best match', updated: 'Recently updated', new: 'Newest', downloads: 'Most downloaded', likes: 'Most liked', name: 'Name A–Z' };
 
 /** The browse page's address for a query, leaving out defaults. */
 export function browseUrl(q: Query, change: Partial<Query> = {}): string {

@@ -26,8 +26,23 @@ export interface Config {
   auth?: AuthConfig;
   /** What stops sign-in from working, as sentences: empty when it is on, or when nothing about it is set. */
   authProblems: string[];
+  /** How downloads are served (docs/design.md, "Subscriptions and download speed"). */
+  downloads: DownloadConfig;
   /** Admins' email addresses, lower case. An email counts only once Auth0 has verified it. */
   admins: string[];
+}
+
+export interface DownloadConfig {
+  /**
+   * `redirect` (a PC, and later subscribers): the browser is sent to the file on GitHub, at full speed. `nginx` (the
+   * live server): nginx streams the file from GitHub at `freeSpeed`, through the internal location in
+   * deploy/nginx/edgemods-downloads.conf.
+   */
+  mode: 'redirect' | 'nginx';
+  /** The free download speed, in bytes a second (EDGEMODS_FREE_SPEED, in MB/s; 3 to start, the owner's to set). */
+  freeSpeed: number;
+  /** Raises GitHub's limit when asking it for a file's address (nginx mode): 5,000 an hour instead of 60. */
+  githubToken?: string;
 }
 
 export interface AuthConfig {
@@ -60,7 +75,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     imageMaxAge: 86400,
     ...authConfig(env),
     admins: (env.EDGEMODS_ADMINS ?? '').split(/[,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean),
+    downloads: downloadConfig(env),
   };
+}
+
+function downloadConfig(env: NodeJS.ProcessEnv): DownloadConfig {
+  const mode = env.EDGEMODS_DOWNLOADS ?? 'redirect';
+  if (mode !== 'redirect' && mode !== 'nginx') throw new Error(`EDGEMODS_DOWNLOADS is redirect or nginx, not ${mode}`);
+  const mbps = Number(env.EDGEMODS_FREE_SPEED ?? 3);
+  if (!(mbps > 0 && mbps <= 1000)) throw new Error(`EDGEMODS_FREE_SPEED is MB a second, from 0.1 to 1000: ${env.EDGEMODS_FREE_SPEED}`);
+  return { mode, freeSpeed: Math.round(mbps * 1024 * 1024), githubToken: env.EDGEMODS_GITHUB_TOKEN || undefined };
 }
 
 function authConfig(env: NodeJS.ProcessEnv): { auth?: AuthConfig; authProblems: string[] } {
