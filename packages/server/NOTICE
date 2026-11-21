@@ -1,0 +1,16 @@
+EDGEmods server
+Copyright 2026 Edgemodders. MIT License (see ../../LICENSE).
+
+src/jwt.ts and src/auth0.ts are adapted from The Lost Realms' Realm Registry
+(Registry/admin-login.js), which carries this notice:
+
+  The Lost Realms — Realm Registry
+  Copyright 2026 Brave You Worlds, LLC
+
+  Licensed under the Apache License, Version 2.0 (see LICENSE beside this file).
+
+  "The Lost Realms" and "Brave You Worlds" are marks of Brave You Worlds, LLC.
+  The licence grants no rights in them (Apache-2.0 §6), and the rest of The Lost
+  Realms is not under this licence — see ../LICENSE and ../LICENSE-CONTENT.
+
+Those two files are under the Apache License, Version 2.0: licenses/Apache-2.0.txt.

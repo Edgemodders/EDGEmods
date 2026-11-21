@@ -1,5 +1,5 @@
 // site.db: what EDGEmods itself knows, kept across index rebuilds and backed up by Litestream (docs/design.md,
-// "Two kinds of data"). R3b: release check results and moderation. Accounts, likes and downloads come next.
+// "Two kinds of data"). R3b: release check results and moderation. R3c: people, sessions and likes. Downloads next.
 
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -23,7 +23,80 @@ const MIGRATIONS = [
      changed_by TEXT NOT NULL,
      changed_at TEXT NOT NULL
    );`,
+  // R3c: accounts. A person is their Auth0 user id; sessions are opaque ids kept as their SHA-256, so a copy of the
+  // database cannot be used to sign in.
+  `CREATE TABLE users (
+     id TEXT PRIMARY KEY,                 -- Auth0's user id: github|123, google-oauth2|456, auth0|abc
+     name TEXT NOT NULL,                  -- from the sign-in
+     display_name TEXT,                   -- chosen on EDGEmods; shown instead of name
+     email TEXT,
+     email_verified INTEGER NOT NULL DEFAULT 0,
+     github_id INTEGER,                   -- GitHub's numeric user id, for a GitHub sign-in
+     github_login TEXT,
+     adult INTEGER NOT NULL DEFAULT 0,
+     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'blocked')),
+     created_at TEXT NOT NULL,
+     seen_at TEXT NOT NULL
+   );
+   CREATE INDEX users_github ON users (github_id);
+   CREATE TABLE sessions (
+     id TEXT PRIMARY KEY,                 -- SHA-256 of the cookie's value, hex
+     user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL,
+     expires_at TEXT NOT NULL,
+     seen_at TEXT NOT NULL
+   );
+   CREATE INDEX sessions_user ON sessions (user_id);
+   CREATE TABLE likes (
+     user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+     mod_id TEXT NOT NULL,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY (user_id, mod_id)
+   );
+   CREATE INDEX likes_mod ON likes (mod_id);`,
 ];
+
+export interface User {
+  id: string;
+  name: string;
+  displayName?: string;
+  email?: string;
+  emailVerified: boolean;
+  githubId?: number;
+  githubLogin?: string;
+  adult: boolean;
+  status: 'active' | 'blocked';
+  createdAt: string;
+  seenAt: string;
+}
+
+/** What a sign-in tells us about a person. */
+export interface SignedIn {
+  id: string;
+  name: string;
+  email?: string;
+  emailVerified: boolean;
+  githubId?: number;
+  githubLogin?: string;
+}
+
+type Row = Record<string, any>;
+
+function toUser(r: Row): User {
+  return {
+    id: r.id,
+    name: r.name,
+    displayName: r.display_name ?? undefined,
+    email: r.email ?? undefined,
+    emailVerified: Boolean(r.email_verified),
+    githubId: r.github_id ?? undefined,
+    githubLogin: r.github_login ?? undefined,
+    adult: Boolean(r.adult),
+    status: r.status,
+    createdAt: r.created_at,
+    seenAt: r.seen_at,
+  };
+}
 
 export interface CheckRecord {
   mod: string;
@@ -71,6 +144,99 @@ export class SiteStore {
     this.db.prepare(`INSERT INTO moderation VALUES (?, ?, ?, ?, ?)
       ON CONFLICT (mod_id) DO UPDATE SET status = excluded.status, reason = excluded.reason, changed_by = excluded.changed_by, changed_at = excluded.changed_at`)
       .run(mod, status, reason, by, new Date().toISOString());
+  }
+
+  // ---- accounts ----
+
+  /** Adds or refreshes a person after a sign-in. Their EDGEmods settings and chosen name are kept. */
+  upsertUser(u: SignedIn, now = new Date()): User {
+    const at = now.toISOString();
+    this.db.prepare(`INSERT INTO users (id, name, email, email_verified, github_id, github_login, created_at, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (id) DO UPDATE SET name = excluded.name, email = excluded.email, email_verified = excluded.email_verified,
+        github_id = excluded.github_id, github_login = excluded.github_login, seen_at = excluded.seen_at`)
+      .run(u.id, u.name, u.email ?? null, u.emailVerified ? 1 : 0, u.githubId ?? null, u.githubLogin ?? null, at, at);
+    return this.user(u.id)!;
+  }
+
+  user(id: string): User | undefined {
+    const r = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Row | undefined;
+    return r && toUser(r);
+  }
+
+  setDisplayName(id: string, name: string | undefined): void {
+    this.db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(name ?? null, id);
+  }
+
+  setAdult(id: string, adult: boolean): void {
+    this.db.prepare('UPDATE users SET adult = ? WHERE id = ?').run(adult ? 1 : 0, id);
+  }
+
+  /** Blocking ends every session at once. */
+  setStatus(id: string, status: 'active' | 'blocked'): void {
+    this.db.exec('BEGIN');
+    try {
+      this.db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, id);
+      if (status === 'blocked') this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** Removes a person and, through the foreign keys, their sessions and likes. */
+  deleteUser(id: string): void {
+    this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  }
+
+  createSession(hash: string, userId: string, lifeMs: number, now = new Date()): void {
+    this.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now.toISOString());
+    this.db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?)')
+      .run(hash, userId, now.toISOString(), new Date(now.getTime() + lifeMs).toISOString(), now.toISOString());
+  }
+
+  /** The person a session belongs to, if it is current and they are not blocked. Notes when it was last used, hourly. */
+  sessionUser(hash: string, now = new Date()): User | undefined {
+    const r = this.db.prepare(`SELECT u.*, s.seen_at AS session_seen FROM sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'`).get(hash, now.toISOString()) as Row | undefined;
+    if (!r) return undefined;
+    if (now.getTime() - Date.parse(r.session_seen) > 3_600_000) {
+      this.db.prepare('UPDATE sessions SET seen_at = ? WHERE id = ?').run(now.toISOString(), hash);
+      this.db.prepare('UPDATE users SET seen_at = ? WHERE id = ?').run(now.toISOString(), r.id);
+    }
+    return toUser(r);
+  }
+
+  deleteSession(hash: string): void {
+    this.db.prepare('DELETE FROM sessions WHERE id = ?').run(hash);
+  }
+
+  sessionCount(userId: string): number {
+    return (this.db.prepare('SELECT count(*) AS n FROM sessions WHERE user_id = ?').get(userId) as Row).n;
+  }
+
+  // ---- likes ----
+
+  likes(userId: string): Set<string> {
+    return new Set((this.db.prepare('SELECT mod_id FROM likes WHERE user_id = ?').all(userId) as Row[]).map((r) => r.mod_id));
+  }
+
+  setLike(userId: string, modId: string, liked: boolean, now = new Date()): void {
+    if (liked) this.db.prepare('INSERT INTO likes VALUES (?, ?, ?) ON CONFLICT DO NOTHING').run(userId, modId, now.toISOString());
+    else this.db.prepare('DELETE FROM likes WHERE user_id = ? AND mod_id = ?').run(userId, modId);
+  }
+
+  likeCount(modId: string): number {
+    return (this.db.prepare('SELECT count(*) AS n FROM likes WHERE mod_id = ?').get(modId) as Row).n;
+  }
+
+  /** Everything EDGEmods keeps about a person, for "Download my data". */
+  dataOf(userId: string): Record<string, unknown> | undefined {
+    const user = this.user(userId);
+    if (!user) return undefined;
+    const likes = this.db.prepare('SELECT mod_id AS mod, created_at AS likedAt FROM likes WHERE user_id = ? ORDER BY created_at').all(userId);
+    const sessions = this.db.prepare('SELECT created_at AS signedInAt, expires_at AS expiresAt, seen_at AS lastUsedAt FROM sessions WHERE user_id = ? ORDER BY created_at').all(userId);
+    return { account: user, likes, sessions };
   }
 
   close(): void {

@@ -30,8 +30,8 @@ export function ago(iso: string | undefined, now = Date.now()): string {
   if (d < 1) return `${Math.round(d * 24)} h ago`;
   if (d < 2) return 'yesterday';
   if (d < 30) return `${Math.round(d)} days ago`;
-  if (d < 365) return `${Math.round(d / 30)} months ago`;
-  return `${Math.round(d / 365)} years ago`;
+  if (d < 365) return `${plural(Math.round(d / 30), 'month')} ago`;
+  return `${plural(Math.round(d / 365), 'year')} ago`;
 }
 
 export const daysSince = (iso: string | undefined, now = Date.now()): number => (iso ? (now - Date.parse(iso)) / 86400000 : Infinity);

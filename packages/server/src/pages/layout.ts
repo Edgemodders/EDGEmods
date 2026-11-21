@@ -4,11 +4,19 @@
 import { html, type Html } from '../html.js';
 
 export interface Viewer {
+  /** Auth0's user id. */
+  id?: string;
   name: string;
+  /** The GitHub login, for a GitHub sign-in. */
   github?: string;
+  githubId?: number;
+  /** How they signed in, in words: GitHub, Google, Email and password. */
+  via?: string;
   admin: boolean;
   /** Opted in to adult mods in their settings. */
   adult: boolean;
+  /** The mods they like. */
+  liked?: ReadonlySet<string>;
 }
 
 export interface PageContext {
@@ -38,7 +46,42 @@ export const ICON = {
   clock: html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`,
   lock: html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   vscode: html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 2v14l-4 2-10-9 10-9z M17 3v18 M3 9l4 3-4 3"/></svg>`,
+  heart: html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`,
 };
+
+/** The sign-in page's address, coming back to where the person was. */
+export function signInHref(ctx: Pick<PageContext, 'path'>): string {
+  return ctx.path === '/' || ctx.path.startsWith('/signin') || ctx.path.startsWith('/auth/') ? '/signin' : `/signin?return=${encodeURIComponent(ctx.path)}`;
+}
+
+/**
+ * A like button. Signed in: a small form that works without JavaScript (site.js sends it in place). Visitors: a
+ * link to sign in, with the count.
+ */
+export function likeButton(ctx: PageContext, modId: string, count: number, extra = ''): Html {
+  const n = html`<span class="n">${count.toLocaleString('en')}</span>`;
+  // The wide button on a mod's page says what it does in words too; site.js keeps the word current.
+  const word = (on: boolean): Html => (extra.includes('wide') ? html`<span class="w">${on ? 'Liked' : 'Like'}</span>` : html``);
+  if (!ctx.viewer) return html`<a class="like${extra}" href="${signInHref(ctx)}" title="Sign in to like">${ICON.heart}${word(false)}${n}</a>`;
+  const on = Boolean(ctx.viewer.liked?.has(modId));
+  return html`<form class="likeform${extra}" method="post" action="/mods/${encodeURIComponent(modId)}/like">
+    <input type="hidden" name="like" value="${on ? '0' : '1'}"><input type="hidden" name="return" value="${ctx.path}">
+    <button class="like" type="submit" aria-pressed="${on ? 'true' : 'false'}" title="${on ? 'Unlike' : 'Like'}">${ICON.heart}${word(on)}${n}</button></form>`;
+}
+
+function accountMenu(ctx: PageContext): Html {
+  const v = ctx.viewer;
+  if (!v) return html`<a class="btn sm go" href="${signInHref(ctx)}">Sign in</a>`;
+  return html`<details class="usermenu"><summary class="who"><span class="avatar">${v.name.slice(0, 1).toUpperCase()}</span>${v.name.split(' ')[0]}</summary>
+    <div class="menu">
+      <div class="head"><b>${v.name}</b>${v.via ? html`Signed in with ${v.via}` : ''}${v.github ? html` · ${v.github}` : ''}</div>
+      <a href="/me">Profile</a>
+      <a href="/me?tab=likes">Liked mods</a>
+      <a href="/me?tab=mods">${v.github ? 'My mods' : 'Publishing'}</a>
+      <a href="/me?tab=settings">Settings</a>
+      <form method="post" action="/auth/signout"><button type="submit">Sign out</button></form>
+    </div></details>`;
+}
 
 export function page(ctx: PageContext, meta: PageMeta, body: Html): Html {
   const nav: [string, string, PageMeta['nav']][] = [
@@ -72,9 +115,7 @@ ${meta.image ? html`<meta property="og:image" content="${ctx.publicUrl}${meta.im
   <nav aria-label="Main">${nav.map(([href, label, key]) => html`<a href="${href}"${key === meta.nav ? html` aria-current="page"` : ''}>${label}</a>`)}</nav>
   <form action="/mods" role="search"><label class="sr" for="topq">Search mods</label>
     <input class="search" id="topq" name="q" type="search" placeholder="Search mods" value="${ctx.q ?? ''}"></form>
-  <div class="account">${ctx.viewer
-    ? html`<span class="who"><span class="avatar">${ctx.viewer.name.slice(0, 1).toUpperCase()}</span>${ctx.viewer.name.split(' ')[0]}</span>`
-    : html`<a class="btn sm go" href="/signin">Sign in</a>`}</div>
+  <div class="account">${accountMenu(ctx)}</div>
 </div></header>
 ${body}
 <footer class="wrap"><span>EDGEMODS · THE EDGE MOD REGISTRY FOR CYBERPUNK 2077</span>

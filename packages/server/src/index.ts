@@ -1,7 +1,10 @@
+export { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom, SESSION_COOKIE, SESSION_LIFE_MS } from './accounts.js';
 export { createApp, type AppDeps } from './app.js';
-export { Catalog, ftsQuery, PAGE_SIZE, SORTS, type Card, type ModView, type Query, type ReleaseView, type SearchResult } from './catalog.js';
-export { loadConfig, type Config } from './config.js';
+export { Auth0, CONNECTIONS, type Fetch, type Method } from './auth0.js';
+export { Catalog, ftsQuery, PAGE_SIZE, SORTS, type Card, type ModView, type OwnedMod, type Query, type ReleaseView, type SearchResult } from './catalog.js';
+export { loadConfig, type AuthConfig, type Config } from './config.js';
 export { ImageCache } from './images.js';
+export { verifyJwt, type Claims, type Jwk } from './jwt.js';
 export { resolvePlan, MAX_DEPTH, type Plan, type PlanRequest, type PlanSource } from './plan.js';
-export { SiteStore, type CheckRecord } from './site-store.js';
+export { SiteStore, type CheckRecord, type SignedIn, type User } from './site-store.js';
 export { startServer } from './start.js';

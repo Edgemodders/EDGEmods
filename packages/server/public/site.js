@@ -1,5 +1,5 @@
 // EDGEmods: small improvements on pages that work without JavaScript. Filters submit as they change, tabs and
-// pictures switch in place. Nothing is sent anywhere.
+// pictures switch in place, likes are sent without a reload. Nothing goes anywhere but this site.
 (function () {
   'use strict';
   document.documentElement.classList.add('js');
@@ -34,7 +34,8 @@
         tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
         document.querySelectorAll('[data-panel]').forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== key; });
         var url = new URL(location.href);
-        if (key === 'about') url.searchParams.delete('tab'); else url.searchParams.set('tab', key);
+        url.searchParams.delete('note');
+        if (key === (tab.getAttribute('data-default') || 'about')) url.searchParams.delete('tab'); else url.searchParams.set('tab', key);
         history.replaceState(null, '', url.pathname + url.search);
       });
     });
@@ -52,5 +53,36 @@
         document.querySelectorAll('[data-shot]').forEach(function (t) { t.setAttribute('aria-current', String(t === thumb)); });
       });
     });
+
+    // Likes: send the like form in place instead of reloading the page. Every button for the same mod follows.
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.classList || !form.classList.contains('likeform') || !window.fetch) return;
+      e.preventDefault();
+      var button = form.querySelector('button');
+      if (button) button.disabled = true;
+      fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)), headers: { accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function (res) { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
+        .then(function (r) {
+          document.querySelectorAll('form.likeform[action="' + form.getAttribute('action') + '"]').forEach(function (f) {
+            f.querySelector('input[name=like]').value = r.liked ? '0' : '1';
+            var b = f.querySelector('button');
+            b.setAttribute('aria-pressed', String(r.liked));
+            b.title = r.liked ? 'Unlike' : 'Like';
+            b.querySelector('.n').textContent = r.likes.toLocaleString('en');
+            var w = b.querySelector('.w');
+            if (w) w.textContent = r.liked ? 'Liked' : 'Like';
+          });
+        })
+        .catch(function () { form.submit(); })
+        .then(function () { if (button) button.disabled = false; });
+    });
+
+    // The account menu closes when you click elsewhere or press Escape.
+    var menu = document.querySelector('details.usermenu');
+    if (menu) {
+      document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); } });
+    }
   });
 })();

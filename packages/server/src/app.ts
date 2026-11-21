@@ -8,10 +8,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isVersion } from '@edgemodders/edgemods-format';
+import { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom } from './accounts.js';
+import { CONNECTIONS, type Method } from './auth0.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
 import { html, type Html } from './html.js';
 import type { ImageCache } from './images.js';
+import { ACCOUNT_TABS, accountPage, deletedPage, NOTES, signInPage, type AccountTab, type Note } from './pages/account.js';
 import { browsePage, defaultSort, homePage } from './pages/browse.js';
 import { message, type PageContext, type Viewer } from './pages/layout.js';
 import { MOD_TABS, modPage, type ModTab } from './pages/mod.js';
@@ -24,7 +27,9 @@ export interface AppDeps {
   catalog: Catalog;
   site: SiteStore;
   images: ImageCache;
-  /** Who is signed in. Accounts arrive in R3c; until then everyone is a visitor. */
+  /** Sign-in and sessions. Without it, or with sign-in off, everyone is a visitor. */
+  accounts?: Accounts;
+  /** For tests of pages: who is signed in, instead of a session. */
   viewer?: (req: Request) => Viewer | undefined;
 }
 
@@ -34,8 +39,9 @@ const require = createRequire(import.meta.url);
 const FONTS = ['chakra-petch', 'rajdhani', 'jetbrains-mono'].map((name) => [name, join(dirname(require.resolve(`@fontsource/${name}/package.json`)), 'files')]);
 const SCHEMA = require.resolve('@edgemodders/edgemods-format/schema');
 
-/** Only the site's own files; no inline scripts or styles, no frames, no plugins. */
-const CSP = [
+/** Only the site's own files; no inline scripts or styles, no frames, no plugins. Forms post to this site, and
+ *  Sign out's form ends at the Auth0 tenant (browsers apply form-action to the redirect after a form). */
+const csp = (signInDomain?: string): string => [
   "default-src 'self'",
   "img-src 'self'",
   "style-src 'self'",
@@ -45,12 +51,15 @@ const CSP = [
   "object-src 'none'",
   "base-uri 'none'",
   "frame-ancestors 'none'",
-  "form-action 'self'",
+  signInDomain ? `form-action 'self' https://${signInDomain}` : "form-action 'self'",
 ].join('; ');
 
 export function createApp(deps: AppDeps): express.Express {
   const { config, catalog, site, images } = deps;
-  const viewerOf = deps.viewer ?? (() => undefined);
+  const accounts = deps.accounts ?? new Accounts(config, site);
+  const auth0 = accounts.auth0;
+  const viewerOf = deps.viewer ?? ((req: Request) => accounts.viewerOf(req));
+  const CSP = csp(auth0?.config.domain);
   const assetVersion = createHash('sha256')
     .update(readFileSync(join(PUBLIC, 'site.css')))
     .update(readFileSync(join(PUBLIC, 'site.js')))
@@ -108,12 +117,179 @@ export function createApp(deps: AppDeps): express.Express {
 
   app.get('/publish', (req, res) => send(res, publishPage(ctxOf(req))));
 
-  app.get('/signin', (req, res) => send(res, message(ctxOf(req), {
-    title: 'Sign in',
-    eyebrow: 'Accounts',
-    heading: html`Sign in <span>soon</span>`,
-    lede: 'Accounts are on their way: sign in with GitHub, Google or an email to download, like and install mods. Browsing needs no account.',
-  })));
+  // ---- accounts ----
+  const form = express.urlencoded({ extended: false, limit: '10kb', parameterLimit: 20 });
+  const field = (req: Request, name: string): string => (typeof req.body?.[name] === 'string' ? req.body[name] : '');
+  const noStore = (res: Response): void => {
+    res.set('Cache-Control', 'no-store');
+  };
+  /** Writes through the cookie must come from EDGEmods' own pages. True when the request was refused. */
+  const refuse = (req: Request, res: Response): boolean => {
+    if (sameOrigin(req, config.publicUrl)) return false;
+    if (req.accepts(['html', 'json']) === 'json') res.status(403).json({ error: 'cross-site' });
+    else send(res, message(ctxOf(req), { title: 'Refused', eyebrow: 'Accounts', heading: html`Not from <span>here</span>`, lede: 'That request did not come from an EDGEmods page, so it was refused.' }), 403);
+    return true;
+  };
+
+  app.get('/signin', (req, res) => {
+    if (viewerOf(req)) {
+      res.redirect(303, safeReturn(req.query.return));
+      return;
+    }
+    send(res, signInPage(ctxOf(req), safeReturn(req.query.return), accounts.on));
+  });
+
+  app.get('/auth/signin', (req, res) => {
+    if (!auth0) {
+      send(res, signInPage(ctxOf(req), '/', false), 503);
+      return;
+    }
+    const method = Object.keys(CONNECTIONS).includes(String(req.query.method)) ? (req.query.method as Method) : undefined;
+    const start = auth0.start(method);
+    noStore(res);
+    res.append('Set-Cookie', accounts.pendingCookie({ state: start.state, nonce: start.nonce, verifier: start.verifier, returnTo: safeReturn(req.query.return), until: Date.now() + 600_000 }));
+    res.redirect(302, start.url);
+  });
+
+  app.get('/auth/callback', async (req, res) => {
+    noStore(res);
+    const fail = (lede: string, status = 400): void => send(res, message(ctxOf(req), {
+      title: 'Sign-in did not finish', eyebrow: 'Accounts', heading: html`Sign-in did not <span>finish</span>`, lede,
+      actions: html`<a class="btn go" href="/signin">Try again</a><a class="btn" href="/mods">Browse mods</a>`,
+    }), status);
+    if (!auth0) return fail('Sign-in is not set up on this server.', 503);
+    const pending = accounts.pendingOf(req);
+    res.append('Set-Cookie', accounts.clearPendingCookie());
+    if (typeof req.query.error === 'string') {
+      return fail(req.query.error === 'access_denied' ? 'The sign-in was cancelled, or the account did not let EDGEmods in.' : 'Auth0 could not sign you in. Try again in a moment.');
+    }
+    if (!pending || typeof req.query.state !== 'string' || req.query.state !== pending.state || typeof req.query.code !== 'string' || !req.query.code) {
+      return fail('This sign-in has expired or was started in another window. Start again.');
+    }
+    let claims;
+    try {
+      claims = await auth0.finish(req.query.code, pending.verifier, pending.nonce);
+    } catch (err) {
+      console.error(`sign-in refused: ${err instanceof Error ? err.message : err}`);
+      return fail('Auth0\'s answer could not be checked, so you are not signed in. Try again in a moment.', 502);
+    }
+    const user = site.upsertUser(signedInFrom(claims));
+    if (user.status === 'blocked') return fail('This account is blocked on EDGEmods.', 403);
+    res.append('Set-Cookie', accounts.startSession(user.id));
+    res.redirect(303, pending.returnTo);
+  });
+
+  app.post('/auth/signout', (req, res) => {
+    if (refuse(req, res)) return;
+    noStore(res);
+    res.append('Set-Cookie', accounts.endSession(req));
+    // End the Auth0 session too, so the next sign-in can choose another account.
+    res.redirect(303, auth0 ? auth0.logoutUrl(`${config.publicUrl}/`) : '/');
+  });
+
+  /** The signed-in person for an account page or action; anyone else is sent to sign in. */
+  const signedIn = (req: Request, res: Response) => {
+    const user = accounts.userOf(req);
+    if (!user) res.redirect(303, `/signin?return=${encodeURIComponent(req.method === 'GET' ? req.originalUrl : '/me')}`);
+    return user;
+  };
+  const backTo = (res: Response, tab: AccountTab, note: Note): void => {
+    res.redirect(303, `/me?tab=${tab}&note=${note}`);
+  };
+
+  app.get('/me', (req, res) => {
+    const user = signedIn(req, res);
+    if (!user) return;
+    noStore(res);
+    const tab = (ACCOUNT_TABS as readonly string[]).includes(String(req.query.tab)) ? (req.query.tab as AccountTab) : 'profile';
+    const note = Object.keys(NOTES).includes(String(req.query.note)) ? (req.query.note as Note) : undefined;
+    send(res, accountPage(ctxOf(req), tab, {
+      user, method: methodOf(user.id), admin: accounts.isAdmin(user), note,
+      liked: catalog.likedBy(user.id, user.adult),
+      mine: user.githubId ? catalog.ownedBy(user.githubId) : [],
+      canDelete: Boolean(auth0?.canManage),
+    }));
+  });
+
+  app.post('/me/name', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = signedIn(req, res);
+    if (!user) return;
+    const name = field(req, 'name').normalize('NFC').replace(/\p{C}/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    site.setDisplayName(user.id, name || undefined);
+    backTo(res, 'profile', 'name');
+  });
+
+  app.post('/me/settings', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = signedIn(req, res);
+    if (!user) return;
+    site.setAdult(user.id, field(req, 'adult') === '1');
+    backTo(res, 'settings', 'settings');
+  });
+
+  app.post('/me/password', form, async (req, res) => {
+    if (refuse(req, res)) return;
+    const user = signedIn(req, res);
+    if (!user) return;
+    if (!auth0 || methodOf(user.id) !== 'email' || !user.email) return backTo(res, 'profile', 'password-failed');
+    try {
+      await auth0.sendPasswordReset(user.email);
+      backTo(res, 'profile', 'password');
+    } catch (err) {
+      console.error(`password email: ${err instanceof Error ? err.message : err}`);
+      backTo(res, 'profile', 'password-failed');
+    }
+  });
+
+  app.get('/me/data', (req, res) => {
+    const user = signedIn(req, res);
+    if (!user) return;
+    noStore(res);
+    res.attachment('edgemods-my-data.json').type('application/json').send(JSON.stringify(site.dataOf(user.id), null, 2));
+  });
+
+  // Deletes the Auth0 account first: if that fails, nothing is removed here either. (R3f: cancel the Stripe
+  // subscription before both.)
+  app.post('/me/delete', form, async (req, res) => {
+    if (refuse(req, res)) return;
+    const user = signedIn(req, res);
+    if (!user) return;
+    if (field(req, 'confirm') !== '1') return backTo(res, 'profile', 'delete-confirm');
+    if (!auth0?.canManage) return backTo(res, 'profile', 'delete-failed');
+    try {
+      await auth0.deleteUser(user.id);
+    } catch (err) {
+      console.error(`delete account: ${err instanceof Error ? err.message : err}`);
+      return backTo(res, 'profile', 'delete-failed');
+    }
+    site.deleteUser(user.id);
+    noStore(res);
+    res.append('Set-Cookie', accounts.endSession(req));
+    send(res, deletedPage({ ...ctxOf(req), viewer: undefined }));
+  });
+
+  // Likes: a form on cards and mod pages; site.js sends the same form and asks for JSON.
+  app.post('/mods/:id/like', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const wantsJson = req.accepts(['html', 'json']) === 'json';
+    const user = accounts.userOf(req);
+    if (!user) {
+      if (wantsJson) res.status(401).json({ error: 'sign-in' });
+      else res.redirect(303, `/signin?return=${encodeURIComponent(safeReturn(field(req, 'return')))}`);
+      return;
+    }
+    const m = catalog.mod(String(req.params.id));
+    if (!m || (m.adult && !user.adult)) {
+      if (wantsJson) res.status(404).json({ error: 'not-found' });
+      else send(res, notFound(ctxOf(req)), 404);
+      return;
+    }
+    const liked = field(req, 'like') !== '0';
+    site.setLike(user.id, m.id, liked);
+    if (wantsJson) res.set('Cache-Control', 'no-store').json({ liked, likes: site.likeCount(m.id) });
+    else res.redirect(303, safeReturn(field(req, 'return')));
+  });
 
   const findMod = (req: Request, res: Response): ModView | undefined => {
     const m = catalog.mod(String(req.params.id));
@@ -176,6 +352,13 @@ export function createApp(deps: AppDeps): express.Express {
   });
 
   // ---- API ----
+  app.get('/api/v1/me', (req, res) => {
+    const v = viewerOf(req);
+    res.set('Cache-Control', 'no-store').json(v
+      ? { signedIn: true, name: v.name, via: v.via, github: v.github, admin: v.admin, adult: v.adult, likes: [...(v.liked ?? [])] }
+      : { signedIn: false, signIn: accounts.on });
+  });
+
   app.get('/api/v1/mods', (req, res) => {
     const query = parseQuery(req, Boolean(viewerOf(req)?.adult));
     res.set('Cache-Control', 'no-cache').json(catalog.search(query));

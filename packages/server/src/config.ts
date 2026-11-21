@@ -22,6 +22,26 @@ export interface Config {
   showUnchecked: boolean;
   /** How long a cached image is kept by browsers, in seconds. */
   imageMaxAge: number;
+  /** Sign-in through Auth0. Unset: the website runs without accounts, and says so. */
+  auth?: AuthConfig;
+  /** What stops sign-in from working, as sentences: empty when it is on, or when nothing about it is set. */
+  authProblems: string[];
+  /** Admins' email addresses, lower case. An email counts only once Auth0 has verified it. */
+  admins: string[];
+}
+
+export interface AuthConfig {
+  /** The tenant's domain, such as edgemods-dev.us.auth0.com (later login.edgemods.ai). */
+  domain: string;
+  /** The website application (a Regular Web Application). */
+  clientId: string;
+  clientSecret: string;
+  /** The EDGEmods API's identifier, for the extension's tokens (R4). */
+  audience?: string;
+  /** The Management API, for deleting accounts. Its domain is the tenant's own, even when sign-in uses a custom domain. */
+  management?: { domain: string; clientId: string; clientSecret: string };
+  /** Signs the short-lived cookie that carries a sign-in from /auth/signin to /auth/callback. */
+  sessionSecret: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,5 +58,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     checksSecret: env.EDGEMODS_CHECKS_SECRET || undefined,
     showUnchecked: env.EDGEMODS_SHOW_UNCHECKED === '1',
     imageMaxAge: 86400,
+    ...authConfig(env),
+    admins: (env.EDGEMODS_ADMINS ?? '').split(/[,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean),
+  };
+}
+
+function authConfig(env: NodeJS.ProcessEnv): { auth?: AuthConfig; authProblems: string[] } {
+  const get = (name: string): string => (env[name] ?? '').trim();
+  const domain = get('EDGEMODS_AUTH0_DOMAIN').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const needed = {
+    EDGEMODS_AUTH0_DOMAIN: domain,
+    EDGEMODS_AUTH0_CLIENT_ID: get('EDGEMODS_AUTH0_CLIENT_ID'),
+    EDGEMODS_AUTH0_CLIENT_SECRET: get('EDGEMODS_AUTH0_CLIENT_SECRET'),
+    EDGEMODS_SESSION_SECRET: get('EDGEMODS_SESSION_SECRET'),
+  };
+  const missing = Object.entries(needed).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length === Object.keys(needed).length) return { authProblems: [] };
+  const problems = missing.map((k) => `${k} is not set, so sign-in is off.`);
+  if (domain && !/^[a-z0-9.-]+$/i.test(domain)) problems.push('EDGEMODS_AUTH0_DOMAIN is not a domain name, so sign-in is off.');
+  if (needed.EDGEMODS_SESSION_SECRET && needed.EDGEMODS_SESSION_SECRET.length < 32) problems.push('EDGEMODS_SESSION_SECRET is shorter than 32 characters, so sign-in is off.');
+  if (problems.length) return { authProblems: problems };
+  const mId = get('EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID');
+  const mSecret = get('EDGEMODS_AUTH0_MANAGEMENT_CLIENT_SECRET');
+  const mDomain = get('EDGEMODS_AUTH0_MANAGEMENT_DOMAIN').replace(/^https?:\/\//, '').replace(/\/+$/, '') || domain;
+  return {
+    auth: {
+      domain,
+      clientId: needed.EDGEMODS_AUTH0_CLIENT_ID,
+      clientSecret: needed.EDGEMODS_AUTH0_CLIENT_SECRET,
+      audience: get('EDGEMODS_AUTH0_AUDIENCE') || undefined,
+      management: mId && mSecret ? { domain: mDomain, clientId: mId, clientSecret: mSecret } : undefined,
+      sessionSecret: needed.EDGEMODS_SESSION_SECRET,
+    },
+    authProblems: mId && mSecret ? [] : ['EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID or _SECRET is not set: sign-in works, deleting an account does not.'],
   };
 }

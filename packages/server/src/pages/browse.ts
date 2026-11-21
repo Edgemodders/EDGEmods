@@ -4,11 +4,11 @@
 import type { Card, Catalog, Query, SearchResult, Sort } from '../catalog.js';
 import { html, pathOf, type Html } from '../html.js';
 import { ago, bytes, date, daysSince, plural, typeLabel } from '../words.js';
-import { ICON, page, type PageContext } from './layout.js';
+import { ICON, likeButton, page, type PageContext } from './layout.js';
 
 export const imageUrl = (id: string, path: string): string => `/mods/${encodeURIComponent(id)}/images/${pathOf(path)}`;
 
-export function card(c: Card, now = Date.now()): Html {
+export function card(ctx: PageContext, c: Card, now = Date.now()): Html {
   const fresh = daysSince(c.firstPublished, now) < 7;
   const updated = !fresh && daysSince(c.lastUpdated, now) < 7;
   return html`<article class="card">
@@ -26,6 +26,7 @@ export function card(c: Card, now = Date.now()): Html {
       <span class="stat" title="Size">${ICON.box}${bytes(c.size)}</span>
       <span class="stat" title="Version">v${c.version}</span>
       <span class="stat" title="Updated ${date(c.lastUpdated)}">${ICON.clock}${ago(c.lastUpdated, now)}</span>
+      ${likeButton(ctx, c.id, c.likes)}
     </div></article>`;
 }
 
@@ -37,7 +38,7 @@ export function homePage(ctx: PageContext, catalog: Catalog): Html {
     const cards = catalog.rail(sort, 8, adult);
     return cards.length
       ? html`<section><div class="sechead"><h2><span class="id">${id}</span>${title}</h2><a href="/mods?sort=${sort}">See all →</a></div><div class="rule"></div>
-          <div class="cards">${cards.map((c) => card(c))}</div></section>`
+          <div class="cards">${cards.map((c) => card(ctx, c))}</div></section>`
       : html``;
   };
   return page(ctx, { title: 'EDGEmods' }, html`<header class="hero wrap">
@@ -57,7 +58,7 @@ export function homePage(ctx: PageContext, catalog: Catalog): Html {
     </main>`);
 }
 
-const SORT_LABELS: Record<Sort, string> = { relevance: 'Best match', updated: 'Recently updated', new: 'Newest', name: 'Name A–Z' };
+const SORT_LABELS: Record<Sort, string> = { relevance: 'Best match', updated: 'Recently updated', new: 'Newest', likes: 'Most liked', name: 'Name A–Z' };
 
 /** The browse page's address for a query, leaving out defaults. */
 export function browseUrl(q: Query, change: Partial<Query> = {}): string {
@@ -91,7 +92,7 @@ export function browsePage(ctx: PageContext, query: Query, result: SearchResult)
     return html`<fieldset class="facet"><legend>${title}</legend>${list.map((f) => html`<label><input type="checkbox" name="${key}" value="${f.value}"${
       query[key].includes(f.value) ? html` checked` : ''}>${label(f.value, f.label)}<small>${f.count}</small></label>`)}</fieldset>`;
   };
-  const sorts = (query.q ? (['relevance', 'updated', 'new', 'name'] as Sort[]) : (['updated', 'new', 'name'] as Sort[]));
+  const sorts = (query.q ? (['relevance', 'updated', 'new', 'likes', 'name'] as Sort[]) : (['updated', 'new', 'likes', 'name'] as Sort[]));
   const title = query.q ? `“${query.q}”` : query.type.length === 1 ? `${typeLabel(query.type[0])} mods` : 'Mods';
   return page(ctx, { title, nav: query.sort === 'new' && !query.q ? 'new' : 'browse', noindex: chips.length > 1 }, html`<main class="wrap">
     <form class="browse" action="/mods" method="get" id="browse">
@@ -113,7 +114,7 @@ export function browsePage(ctx: PageContext, query: Query, result: SearchResult)
         </div>
         ${chips.length ? html`<div class="chips">${chips.map(([label, href]) => html`<a class="chip" href="${href}">${label} <span aria-label="Remove">×</span></a>`)}${
           chips.length > 1 ? html`<a class="chip clear" href="/mods">Clear all</a>` : ''}</div>` : ''}
-        <div class="cards">${result.cards.length ? result.cards.map((c) => card(c)) : html`<p class="empty wide">No mods match. Try fewer filters.</p>`}</div>
+        <div class="cards">${result.cards.length ? result.cards.map((c) => card(ctx, c)) : html`<p class="empty wide">No mods match. Try fewer filters.</p>`}</div>
         ${result.pages > 1 ? html`<nav class="pager" aria-label="Pages">
           ${result.page > 1 ? html`<a class="btn sm" href="${browseUrl(query, { page: result.page - 1 })}" rel="prev">Previous</a>` : ''}
           <span class="count">Page ${result.page} of ${result.pages}</span>

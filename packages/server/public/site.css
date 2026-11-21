@@ -348,6 +348,32 @@ a.req:hover { border-color: var(--cyan); }
 .steps .id { font-family: var(--mono); font-size: 13px; color: var(--yellow); letter-spacing: .12em; }
 .steps h3 { margin-top: 6px; }
 .steps p { margin: 0; color: var(--soft); }
-.account .who { cursor: default; }
 .modhead .byline { margin-top: 12px; }
 .modmeta.first { margin-top: 0; }
+/* R3c: accounts. The account menu is a <details>, so it opens without JavaScript. */
+.usermenu { position: relative; }
+.usermenu > summary { list-style: none; }
+.usermenu > summary::-webkit-details-marker { display: none; }
+.usermenu[open] > .menu { display: block; }
+.menu form { margin: 0; }
+.likeform { display: inline-flex; margin: 0; }
+.card .foot .likeform { margin-left: auto; position: relative; z-index: 1; }
+a.like { text-decoration: none; }
+.like.wide, .likeform.wide, .likeform.wide .like { width: 100%; justify-content: center; }
+.likeform.wide .like, a.like.wide { padding: 9px; font-size: 12px; }
+.signin { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin: 8px 0 20px; }
+.signin .method { display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--fg); }
+.signin .method b { font-family: var(--display); font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
+.signin .method span { color: var(--soft); font-size: 16px; }
+.signin .method:hover { border-color: var(--cyan); }
+.signin .method:hover b { color: var(--cyan); }
+.notice { margin: 18px 0 0; }
+.small { font-size: 15px; }
+.acct .row { margin: 12px 0; }
+.acct .bigname { font-family: var(--display); font-size: 20px; }
+.acct .search { max-width: 320px; }
+.danger-zone { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.danger-zone .toggle { font-size: 16px; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.like .w { text-transform: uppercase; letter-spacing: .12em; }
+.like .w + .n::before { content: "· "; }

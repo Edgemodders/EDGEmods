@@ -8,7 +8,7 @@ import { html, raw, type Html } from '../html.js';
 import { resolvePlan } from '../plan.js';
 import { ago, bytes, date, KIND_LABELS, needsWords, plural, typeLabel } from '../words.js';
 import { imageUrl } from './browse.js';
-import { ICON, page, type PageContext } from './layout.js';
+import { ICON, likeButton, page, signInHref, type PageContext } from './layout.js';
 
 export const MOD_TABS = ['about', 'files', 'versions', 'needs'] as const;
 export type ModTab = (typeof MOD_TABS)[number];
@@ -43,9 +43,11 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
       <aside class="side">
         <div class="panel"><div class="actions">${who
           ? html`<a class="btn go" href="vscode://edgemodders.edgemods/install?mod=${encodeURIComponent(m.id)}&amp;version=${encodeURIComponent(shown.version)}">${ICON.vscode} Install in VS Code</a>
-                 <a class="btn" href="?tab=files#tabs">${ICON.down} Download files</a>`
-          : html`<a class="btn go" href="/signin">${ICON.lock} Sign in to download</a>
-                 <p class="gate">Downloading, installing and seeing where a mod comes from need a free account.</p>`}</div></div>
+                 <a class="btn" href="?tab=files#tabs">${ICON.down} Download files</a>
+                 ${likeButton(ctx, m.id, m.likes, ' wide')}`
+          : html`<a class="btn go" href="${signInHref(ctx)}">${ICON.lock} Sign in to download</a>
+                 ${likeButton(ctx, m.id, m.likes, ' wide')}
+                 <p class="gate">Downloading, installing, liking and seeing where a mod comes from need a free account.</p>`}</div></div>
         <div class="panel"><dl class="kv">
           <dt>Version</dt><dd>${shown.version}</dd>
           <dt>Updated</dt><dd>${date(shown.publishedAt)}</dd>
@@ -117,7 +119,7 @@ function filesPanel(ctx: PageContext, m: ModView, r: ReleaseView, names: Map<str
   const optional = r.files.filter((f) => f.role === 'optional');
   const block = (title: string, hint: string, files: ReleaseFile[]): Html =>
     html`<div class="panel filegroup"><p class="label">${title} <em>${hint}</em></p>${files.map((f) => fileRow(ctx, m, r, f, names))}</div>`;
-  return html`<p class="dim">Version ${r.version}, released ${date(r.publishedAt)}. ${ctx.viewer ? 'Install in VS Code to pick files and bring the requirements along.' : html`<a href="/signin">Sign in</a> to download or install.`}</p>
+  return html`<p class="dim">Version ${r.version}, released ${date(r.publishedAt)}. ${ctx.viewer ? 'Install in VS Code to pick files and bring the requirements along.' : html`<a href="${signInHref(ctx)}">Sign in</a> to download or install.`}</p>
     <div class="files">
       ${required.length ? block('Required', 'always installed', required) : ''}
       ${groups.map((g) => block(`Choose one: ${g}`, 'these replace each other, so only one is installed', r.files.filter((f) => f.group === g)))}
@@ -134,7 +136,7 @@ function versionsPanel(ctx: PageContext, m: ModView, names: Map<string, string>)
         <p class="label">What changed</p>${r.notesHtml ? html`<div class="readme notes">${raw(r.notesHtml)}</div>` : html`<p class="dim">The author wrote no notes for this version.</p>`}
         <p class="label">Files</p><div class="vfiles">${r.files.map((f) => fileRow(ctx, m, r, f, names))}</div>
         <p class="label">Requirements</p><p>${r.requirements.length ? r.requirements.map((q, i) => html`${i ? ' · ' : ''}${requirementWords(q, names)}`) : 'None'}</p>
-        ${ctx.viewer ? html`<a class="btn sm" href="vscode://edgemodders.edgemods/install?mod=${encodeURIComponent(m.id)}&amp;version=${encodeURIComponent(r.version)}">${r.version === m.shown.version ? 'Install' : 'Install this version'}</a>` : html`<a class="btn sm" href="/signin">Sign in to download or install</a>`}
+        ${ctx.viewer ? html`<a class="btn sm" href="vscode://edgemodders.edgemods/install?mod=${encodeURIComponent(m.id)}&amp;version=${encodeURIComponent(r.version)}">${r.version === m.shown.version ? 'Install' : 'Install this version'}</a>` : html`<a class="btn sm" href="${signInHref(ctx)}">Sign in to download or install</a>`}
       </div></details>`)}</div>`;
 }
 

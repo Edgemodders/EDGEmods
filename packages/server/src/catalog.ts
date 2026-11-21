@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { Requirement } from '@edgemodders/edgemods-format';
 import { INDEX_SCHEMA_VERSION } from '@edgemodders/edgemods-indexer';
 
-export const SORTS = ['relevance', 'updated', 'new', 'name'] as const;
+export const SORTS = ['relevance', 'updated', 'new', 'likes', 'name'] as const;
 export type Sort = (typeof SORTS)[number];
 export const PAGE_SIZE = 24;
 
@@ -59,6 +59,19 @@ export interface Card {
   adult: boolean;
   runsCode: boolean;
   card: string;
+  likes: number;
+}
+
+/** A mod in its owner's list, whether or not it shows yet. */
+export interface OwnedMod {
+  id: string;
+  name: string;
+  latest?: string;
+  /** The version players see; missing while no release has passed its checks. */
+  shownVersion?: string;
+  moderation?: 'hidden' | 'blocked';
+  likes: number;
+  lastUpdated?: string;
 }
 
 export interface ModView extends Card {
@@ -159,7 +172,8 @@ export class Catalog {
       ), shown AS (
         SELECT m.*, v.version, v.size, v.published_at AS shown_at, v.requirements AS reqs,
           EXISTS (SELECT 1 FROM site.release_checks c, json_each(c.downloads) d
-                  WHERE c.mod_id = m.id AND c.version = v.version AND json_array_length(d.value, '$.contents.runsCode') > 0) AS runs_code
+                  WHERE c.mod_id = m.id AND c.version = v.version AND json_array_length(d.value, '$.contents.runsCode') > 0) AS runs_code,
+          (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes
         FROM mods m JOIN visible v ON v.mod_id = m.id AND v.pick = 1
         WHERE NOT EXISTS (SELECT 1 FROM site.moderation x WHERE x.mod_id = m.id AND x.status <> 'visible')
       )`;
@@ -200,6 +214,7 @@ export class Catalog {
       relevance: match ? '(SELECT bm25(mods_search) FROM mods_search WHERE mods_search MATCH :match AND mods_search.id = s.id), s.shown_at DESC' : 's.shown_at DESC',
       updated: 's.shown_at DESC',
       new: 's.first_published DESC',
+      likes: 's.likes DESC, s.shown_at DESC',
       name: 's.name COLLATE NOCASE',
     }[query.sort];
     const total = (this.db.prepare(`${this.shownSql()} SELECT count(*) AS n FROM shown s ${all.sql}`).get(all.params) as Row).n as number;
@@ -246,6 +261,25 @@ export class Catalog {
 
   typeCounts(adult: boolean): Facet[] {
     return this.search({ q: '', type: [], tag: [], needs: [], nocode: false, sort: 'updated', page: 1, adult }).facets.type;
+  }
+
+  /** The mods a person likes, most recently liked first. */
+  likedBy(userId: string, adult: boolean): Card[] {
+    const rows = this.db.prepare(`${this.shownSql()} SELECT s.* FROM shown s JOIN site.likes l ON l.mod_id = s.id AND l.user_id = ?
+      ${adult ? '' : 'WHERE s.adult = 0'} ORDER BY l.created_at DESC LIMIT 200`).all(userId) as Row[];
+    return rows.map(toCard);
+  }
+
+  /** A modder's mods by their GitHub user id, including those that do not show yet. */
+  ownedBy(githubId: number): OwnedMod[] {
+    const rows = this.db.prepare(`${this.shownSql()} SELECT m.id, m.name, m.latest, m.last_updated, s.version AS shown_version,
+        (SELECT status FROM site.moderation x WHERE x.mod_id = m.id AND x.status <> 'visible') AS moderation,
+        (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes
+      FROM mods m LEFT JOIN shown s ON s.id = m.id WHERE m.owner_id = ? ORDER BY m.name COLLATE NOCASE`).all(githubId) as Row[];
+    return rows.map((r) => ({
+      id: r.id, name: r.name, latest: r.latest ?? undefined, shownVersion: r.shown_version ?? undefined,
+      moderation: r.moderation ?? undefined, likes: r.likes, lastUpdated: r.last_updated ?? undefined,
+    }));
   }
 
   /** One mod as anyone may see it, or undefined if it does not show (missing, hidden, or nothing checked yet). */
@@ -312,6 +346,7 @@ function toCard(r: Row): Card {
     adult: Boolean(r.adult),
     runsCode: Boolean(r.runs_code),
     card: r.card,
+    likes: r.likes ?? 0,
   };
 }
 

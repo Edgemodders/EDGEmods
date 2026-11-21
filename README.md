@@ -17,7 +17,7 @@ The EDGEmods extension for VS Code (planned: phases R4 and R5) will browse the r
 **[Read the docs](https://edgemodders.github.io/EDGEmods/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: early build, nothing to use yet.** Built for the owner's review: R1, the mod metadata format ([edgemods.json](https://edgemodders.github.io/EDGEmods/manifest.html)); R2, the registry and its merge checks ([registry](https://edgemodders.github.io/EDGEmods/registry.html); one test mod has passed them); R3a and R3b, the indexer and a read-only website that runs on a PC ([dev setup](https://edgemodders.github.io/EDGEmods/dev-setup.html#run-the-website-on-this-pc)). Not built yet: accounts, downloads, the live site at edgemods.ai, and the EDGEmods extension. Next: R3c, accounts (Auth0 sign-in, likes, the Profile tab), once the owner has set up the Auth0 tenant. There is no release yet. The design is draft 0.2.
+> **Status: early build, nothing to use yet.** Built for the owner's review: R1, the mod metadata format ([edgemods.json](https://edgemodders.github.io/EDGEmods/manifest.html)); R2, the registry and its merge checks ([registry](https://edgemodders.github.io/EDGEmods/registry.html); one test mod has passed them); R3a and R3b, the indexer and a website that runs on a PC ([dev setup](https://edgemodders.github.io/EDGEmods/dev-setup.html#run-the-website-on-this-pc)); R3c, accounts (Auth0 sign-in, likes, the Account page), tested against a stand-in for Auth0, with the first sign-in on the real development tenant still to do. Not built yet: downloads, the admin page, the live site at edgemods.ai, and the EDGEmods extension. There is no release yet. The design is draft 0.2.
 
 ## Repository layout
 
@@ -26,7 +26,7 @@ The EDGEmods extension for VS Code (planned: phases R4 and R5) will browse the r
 | `packages/format` | The `edgemods.json` format: types, a validator that explains problems in plain words, folder and release checks, the generated JSON schema |
 | `packages/checks` | The registry's merge checks, run by `.github/workflows/registry.yml` on each publishing pull request |
 | `packages/indexer` | Builds the website's database (`index.db`) from the registry and the mods' repositories |
-| `packages/server` | The mod website (R3b: read-only for now) |
+| `packages/server` | The mod website: pages, search, mod pages, accounts and likes (R3b, R3c) |
 | `registry/` | The registry: one small file per mod |
 | `examples/example-mod` | An example mod repository that passes the checks |
 | `docs/` | Developer documentation: the design, the format, the registry, the website prototype (`docs/prototype/`), research, dev setup |

@@ -62,6 +62,8 @@ EDGEMODS_DATA=data EDGEMODS_SHOW_UNCHECKED=1 node packages/server/bin/edgemods-s
 
 Then open http://localhost:8800 (use `localhost`, not `127.0.0.1`: sign-in returns to the address registered in Auth0). `EDGEMODS_SHOW_UNCHECKED=1` shows releases that have no release check result yet, since a PC has none; never set it on the live site. `data/` is ignored by git. The settings are in `packages/server/src/config.ts`: `EDGEMODS_PORT` (8800; TheLostRealms uses 8787 and 8790 to 8794 on the same server), `EDGEMODS_HOST` (127.0.0.1), `EDGEMODS_DATA`, `EDGEMODS_INDEX`, `EDGEMODS_PUBLIC_URL`, `EDGEMODS_CHECKS_SECRET`. Node prints an "SQLite is an experimental feature" warning on Node 24; add `--no-warnings` to hide it.
 
+**Sign-in on this PC.** The server reads a `.env` file from the folder it is started in (the checkout's top; `EDGEMODS_ENV_FILE` names another), which git ignores. [Auth0 setup](auth0-setup.html), step 7, lists what goes in it. Settings already in the environment win over the file. At start the server prints `Sign-in: on, with <tenant>` or which setting is missing. Without the file the site runs without accounts and says so on the sign-in page. Sign in at http://localhost:8800/signin; your account page is http://localhost:8800/me.
+
 ## 4. Docs site and brand images
 
 The developer docs at https://edgemodders.github.io/EDGEmods/ are built by `.github/workflows/pages.yml` on every push to `main`. **Settings > Pages > Source** must be **GitHub Actions**. The mod website is `packages/server` (section 3), not this site.
