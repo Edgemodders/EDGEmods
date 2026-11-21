@@ -377,3 +377,21 @@ a.like { text-decoration: none; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 .like .w { text-transform: uppercase; letter-spacing: .12em; }
 .like .w + .n::before { content: "· "; }
+/* Page headers carry the EDGE banner's background (tools/brand/brand.html, .frame): its grid, and a yellow glow
+   rising from the bottom left. */
+.hero, .pagehead {
+  background:
+    radial-gradient(ellipse at 18% 120%, rgba(252,238,10,.10), transparent 55%),
+    linear-gradient(rgba(25,243,255,.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(25,243,255,.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--bg);
+  border: 1px solid var(--line);
+}
+.hero { margin-top: 24px; }
+.pagehead { margin-top: 24px; padding: 36px 32px 30px; }
+@media (max-width: 640px) {
+  .hero { padding: 40px 20px 28px; }
+  .pagehead { padding: 28px 20px 22px; }
+}
+.hero::before { top: 14px; left: 14px; }
+.hero::after { bottom: 14px; right: 14px; }

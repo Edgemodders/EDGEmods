@@ -20,6 +20,10 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 - Download everything EDGEmods keeps about you, and delete your account.
 - Email-and-password accounts can ask for a link to change their password.
 
+### Changed
+
+- Page headers wear the EDGE banner's background: its grid and a yellow glow from the bottom left.
+
 ### Fixed
 
 - "1 months ago" now reads "1 month ago".
