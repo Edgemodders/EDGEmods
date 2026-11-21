@@ -74,7 +74,7 @@ function accountMenu(ctx: PageContext): Html {
   if (!v) return html`<a class="btn sm go" href="${signInHref(ctx)}">Sign in</a>`;
   return html`<details class="usermenu"><summary class="who"><span class="avatar">${v.name.slice(0, 1).toUpperCase()}</span>${v.name.split(' ')[0]}</summary>
     <div class="menu">
-      <div class="head"><b>${v.name}</b>${v.via ? html`Signed in with ${v.via}` : ''}${v.github ? html` · ${v.github}` : ''}</div>
+      <div class="head"><b>${v.name}</b>${v.github ? html`GitHub · ${v.github}` : ''}</div>
       <a href="/me">Profile</a>
       <a href="/me?tab=likes">Liked mods</a>
       <a href="/me?tab=mods">${v.github ? 'My mods' : 'Publishing'}</a>
