@@ -24,7 +24,10 @@ export interface JwtCheck {
   now: number;
   /** For ID tokens: the nonce the sign-in sent, which the token must carry back. */
   nonce?: string;
+  /** For expiry: a minute by default. */
   leewayMs?: number;
+  /** How far ahead of this clock a token's issue time may be: five minutes by default. */
+  futureLeewayMs?: number;
 }
 
 export type Claims = Record<string, unknown> & { sub: string };
@@ -63,7 +66,12 @@ export function verifyJwt(token: string, check: JwtCheck): Claims {
   if (!aud.includes(check.audience)) throw new Error('the token was made for another application');
   const leeway = check.leewayMs ?? 60_000;
   if (!(Number(body.exp) * 1000 > check.now - leeway)) throw new Error('the token has expired');
-  if (body.iat !== undefined && Number(body.iat) * 1000 > check.now + leeway) throw new Error('the token is from the future');
+  // A token "issued" ahead of our clock means a clock is off. Five minutes is allowed: PCs drift (one here was 4.5
+  // minutes slow, 2026-11-21), and expiry, not issue time, is what keeps an old token out.
+  const ahead = Number(body.iat) * 1000 - check.now;
+  if (body.iat !== undefined && ahead > (check.futureLeewayMs ?? 300_000)) {
+    throw new Error(`the token was issued ${Math.round(ahead / 1000)} s ahead of this computer's clock; set the clock right`);
+  }
   if (check.nonce !== undefined && body.nonce !== check.nonce) throw new Error('the token is not for this sign-in');
   if (typeof body.sub !== 'string' || !body.sub) throw new Error('the token names nobody');
   return body as Claims;

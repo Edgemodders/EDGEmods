@@ -73,7 +73,11 @@ describe('signing in', () => {
       'another application': (n) => tenant.good(n, { ...BOB, aud: 'someone-else' }),
       'another issuer': (n) => tenant.good(n, { ...BOB, iss: 'https://evil.test/' }),
       'an expired token': (n) => tenant.good(n, { ...BOB, exp: Math.floor(Date.now() / 1000) - 3600 }),
+      'issued 10 minutes ahead of our clock': (n) => tenant.good(n, { ...BOB, iat: Math.floor(Date.now() / 1000) + 600 }),
     };
+    // A clock a few minutes slow, as on the owner's PC on 2026-11-21, still signs in.
+    const slow = await signIn(t, tenant, BOB, { claims: (n) => tenant.good(n, { ...BOB, iat: Math.floor(Date.now() / 1000) + 270 }) });
+    assert.equal(slow.callback.status, 303);
     for (const [what, claims] of Object.entries(cases)) assert.equal(await statusOf({ claims }), 502, what);
     const begin = await t.get('/auth/signin');
     const authorize = new URL(begin.headers.get('location'));
