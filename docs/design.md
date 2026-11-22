@@ -339,6 +339,19 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | R4c Install | `openLink(url)` for EDGEdeck's links, an Install button and command: the plan, "Install X and N requirements?", every file downloaded and checked against its SHA-256, then EDGEdeck installs them, all or nothing, with an offer to deploy. Needs EDGEdeck#16's part 2; until then Install offers to save the files | Mod manager on the website goes all the way into EDGEdeck; then a mod found in VS Code runs in the game |
 | R4d MCP server | `mods_search`, `mods_info`, `mods_plan`, `mods_install`, reusing the core; install shows the tree first | A Claude session finds and installs the test mod |
 
+**Built:** R4a (2026-11-22; the owner's hand test passed that day). R4b (2026-11-22), with how it works:
+
+| Part | How |
+|---|---|
+| Side panel | A webview view in the activity bar. The extension asks the API (`/api/v1/mods`, `/api/v1/me/likes`); the panel's script draws rows from that data with `textContent` only |
+| A mod's tab | One editor tab per mod, the website's own page from `GET /api/v1/mods/<id>/view` (the page without its frame, `PageContext.embed`), so the look and the soft gate are the site's. Its Mod manager button reads Install. Tabs restore when VS Code reopens |
+| Links in a tab | Never followed inside the editor. The tab's script sends each link as written, and `pageLink()` in the core decides: a mod opens its tab, a type or tag filters the side panel, a download saves the file, outside links open in the browser (VS Code asks first for sites it does not trust), anything else (`javascript:`, `command:`, `file:`) does nothing |
+| Webview rules | Scripts only from the extension's `media/` folder, with a fresh nonce; pictures, site.css and its fonts from the site (`/assets` sends CORS for that); no forms, no frames |
+| Manual download | To a folder the person picks; the token goes to the site only, never along GitHub's redirects; each file checked against the SHA-256 the release check recorded, deleted if it does not match |
+| Likes and reports | `POST /api/v1/mods/<id>/like` and `/report`, with the token |
+| Sign-in | Auth0 now returns to the site's `/auth/vscode`, a page that says "Back to VS Code" and opens the editor's link; the state starts with the editor's link scheme, from a fixed list. Windows does not bring the editor forward, and a page cannot send the browser back or reliably close its own tab, so the page says what to do |
+| Install | Says installing through EDGEdeck comes with R4c and offers to save the files |
+
 ## Installing a mod and its requirements
 
 **Decided (the owner, 2026-10-17):** when a player picks a mod to install, the EDGEmods server assembles the dependency chain from the mods' `edgemods.json` files. The EDGEmods extension orchestrates the rest: it downloads every file in the chain from the mods' GitHub releases and hands each mod to EDGEdeck, which installs each one into the loadout.

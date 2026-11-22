@@ -78,7 +78,7 @@ npm run package                                   # dist/edgemods-0.1.0.vsix
 code --install-extension dist/edgemods-0.1.0.vsix
 ```
 
-In VS Code's user settings, set `"edgemods.site": "http://localhost:8800"` (a user setting only: a folder's settings cannot change it). Then **EDGEmods: Sign in** from the Command Palette, or the EDGEmods item in the status bar. The browser opens Auth0's page; after signing in it asks to open VS Code, which finishes the sign-in. The extension's log is the **EDGEmods** output channel. `npm test --workspace extensions/edgemods` runs its tests, against stand-ins for Auth0 and the site.
+In VS Code's user settings, set `"edgemods.site": "http://localhost:8800"` (a user setting only: a folder's settings cannot change it). Then **EDGEmods: Sign in** from the Command Palette, or the EDGEmods item in the status bar. The browser opens Auth0's page; after signing in it shows the site's "Back to VS Code" page (`/auth/vscode`, which must be in the application's Allowed Callback URLs) and asks to open VS Code, which finishes the sign-in. Windows does not bring VS Code to the front by itself; its taskbar button flashes. The EDGEmods icon in the activity bar opens the side panel; a mod opens in an editor tab. Both load the website's stylesheet and pictures from `edgemods.site`. The extension's log is the **EDGEmods** output channel. `npm test --workspace extensions/edgemods` runs its tests, against stand-ins for Auth0 and the site.
 
 ## 4. Docs site and brand images
 
