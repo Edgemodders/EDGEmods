@@ -98,7 +98,87 @@ const MIGRATIONS = [
   // The owner dropped the free monthly download limit the same day (2026-11-21): it could read as a paywall on mods,
   // which CD Projekt RED's guidelines forbid. Its settings table goes with it; free downloads are limited in speed only.
   `DROP TABLE settings;`,
+  // R3e: the rest of the Admin page (docs/design.md, "Administration"). The blocklist is private: GitHub accounts and
+  // repositories by GitHub's numeric ids, so renames change nothing; EDGEmods accounts are blocked on users.status.
+  `ALTER TABLE users ADD COLUMN blocked_reason TEXT;
+   ALTER TABLE users ADD COLUMN blocked_by TEXT;
+   ALTER TABLE users ADD COLUMN blocked_at TEXT;
+   CREATE TABLE blocklist (
+     kind TEXT NOT NULL CHECK (kind IN ('github', 'repo')),
+     value TEXT NOT NULL,                  -- GitHub's numeric id, as text
+     label TEXT NOT NULL,                  -- the login or owner/repo when it was blocked
+     reason TEXT NOT NULL DEFAULT '',
+     blocked_by TEXT NOT NULL,
+     blocked_at TEXT NOT NULL,
+     PRIMARY KEY (kind, value)
+   );
+   CREATE TABLE mod_overrides (            -- admins' changes on top of the modder's metadata; the repository is never changed
+     mod_id TEXT PRIMARY KEY,
+     adult INTEGER,                        -- NULL: as the modder says
+     changed_by TEXT NOT NULL,
+     changed_at TEXT NOT NULL
+   );
+   CREATE TABLE reports (
+     id INTEGER PRIMARY KEY,
+     mod_id TEXT NOT NULL,
+     user_id TEXT REFERENCES users (id) ON DELETE SET NULL,
+     reason TEXT NOT NULL CHECK (reason IN ('broken', 'malware', 'stolen', 'adult', 'other')),
+     note TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+     closed_by TEXT,
+     closed_at TEXT,
+     close_note TEXT
+   );
+   CREATE UNIQUE INDEX reports_one_open ON reports (user_id, mod_id) WHERE status = 'open';
+   CREATE INDEX reports_status ON reports (status, created_at);
+   CREATE TABLE spot_reviews (            -- an admin looked over this release after it merged by itself
+     mod_id TEXT NOT NULL,
+     version TEXT NOT NULL,
+     reviewed_by TEXT NOT NULL,
+     reviewed_at TEXT NOT NULL,
+     PRIMARY KEY (mod_id, version)
+   );`,
 ];
+
+export const REPORT_REASONS = {
+  broken: 'Does not work',
+  malware: 'Malware or harmful',
+  stolen: 'Someone else\'s work',
+  adult: 'Adult content not marked 18+',
+  other: 'Something else',
+} as const;
+export type ReportReason = keyof typeof REPORT_REASONS;
+
+export interface Report {
+  id: number;
+  modId: string;
+  /** The reporter's username (or user id), or undefined if their account is gone. */
+  by?: string;
+  reason: ReportReason;
+  note: string;
+  createdAt: string;
+  status: 'open' | 'closed';
+  closedBy?: string;
+  closedAt?: string;
+  closeNote?: string;
+}
+
+export interface BlockEntry {
+  kind: 'github' | 'repo' | 'account';
+  /** GitHub's id for github and repo; the user id for an account. */
+  value: string;
+  label: string;
+  reason: string;
+  by: string;
+  at: string;
+}
+
+export interface AdminUser extends User {
+  blockedReason?: string;
+  downloads: number;
+  likes: number;
+}
 
 /** The first moment of the month `now` is in, and of the next, in UTC. */
 export function monthOf(now: Date): { start: string; next: string } {
@@ -262,12 +342,14 @@ export class SiteStore {
     this.db.prepare('UPDATE users SET adult = ? WHERE id = ?').run(adult ? 1 : 0, id);
   }
 
-  /** Blocking ends every session at once. */
-  setStatus(id: string, status: 'active' | 'blocked'): void {
+  /** Blocking ends every session at once and refuses the next sign-in. */
+  setStatus(id: string, status: 'active' | 'blocked', by = 'system', reason = '', now = new Date()): void {
     this.db.exec('BEGIN');
     try {
-      this.db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, id);
-      if (status === 'blocked') this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      const blocked = status === 'blocked';
+      this.db.prepare('UPDATE users SET status = ?, blocked_reason = ?, blocked_by = ?, blocked_at = ? WHERE id = ?')
+        .run(status, blocked ? reason : null, blocked ? by : null, blocked ? now.toISOString() : null, id);
+      if (blocked) this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -291,7 +373,8 @@ export class SiteStore {
   /** The person a session belongs to, if it is current and they are not blocked. Notes when it was last used, hourly. */
   sessionUser(hash: string, now = new Date()): User | undefined {
     const r = this.db.prepare(`SELECT u.*, s.seen_at AS session_seen, s.created_at AS session_started FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'`).get(hash, now.toISOString()) as Row | undefined;
+      WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'
+        AND NOT EXISTS (SELECT 1 FROM blocklist b WHERE b.kind = 'github' AND b.value = CAST(u.github_id AS TEXT))`).get(hash, now.toISOString()) as Row | undefined;
     if (!r) return undefined;
     if (now.getTime() - Date.parse(r.session_seen) > 3_600_000) {
       this.db.prepare('UPDATE sessions SET seen_at = ? WHERE id = ?').run(now.toISOString(), hash);
@@ -334,6 +417,86 @@ export class SiteStore {
 
   downloadCount(modId: string): number {
     return (this.db.prepare('SELECT count(*) AS n FROM downloads WHERE mod_id = ?').get(modId) as Row).n;
+  }
+
+  // ---- moderation (R3e) ----
+
+  moderationOf(modId: string): { status: 'visible' | 'hidden' | 'blocked'; reason: string } | undefined {
+    const r = this.db.prepare('SELECT status, reason FROM moderation WHERE mod_id = ?').get(modId) as Row | undefined;
+    return r && { status: r.status, reason: r.reason };
+  }
+
+  /** An admin's adult flag for a mod: true or false, or undefined to follow the modder. */
+  setAdultOverride(modId: string, adult: boolean | undefined, by: string, now = new Date()): void {
+    if (adult === undefined) this.db.prepare('DELETE FROM mod_overrides WHERE mod_id = ?').run(modId);
+    else this.db.prepare('INSERT INTO mod_overrides VALUES (?, ?, ?, ?) ON CONFLICT (mod_id) DO UPDATE SET adult = excluded.adult, changed_by = excluded.changed_by, changed_at = excluded.changed_at')
+      .run(modId, adult ? 1 : 0, by, now.toISOString());
+  }
+
+  // ---- the blocklist ----
+
+  isBlocked(kind: 'github' | 'repo', id: number | string): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM blocklist WHERE kind = ? AND value = ?').get(kind, String(id)));
+  }
+
+  block(kind: 'github' | 'repo', id: number | string, label: string, by: string, reason = '', now = new Date()): void {
+    this.db.prepare(`INSERT INTO blocklist VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (kind, value) DO UPDATE SET label = excluded.label, reason = excluded.reason,
+      blocked_by = excluded.blocked_by, blocked_at = excluded.blocked_at`).run(kind, String(id), label, reason, by, now.toISOString());
+    // A blocked GitHub account cannot stay signed in through it.
+    if (kind === 'github') this.db.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE github_id = ?)").run(Number(id));
+  }
+
+  unblock(kind: 'github' | 'repo', id: number | string): boolean {
+    return Number(this.db.prepare('DELETE FROM blocklist WHERE kind = ? AND value = ?').run(kind, String(id)).changes) > 0;
+  }
+
+  /** Everything blocked: GitHub accounts, repositories and EDGEmods accounts, newest first. */
+  blocklist(): BlockEntry[] {
+    const listed = (this.db.prepare('SELECT * FROM blocklist').all() as Row[]).map((r): BlockEntry => ({ kind: r.kind, value: r.value, label: r.label, reason: r.reason, by: r.blocked_by, at: r.blocked_at }));
+    const accounts = (this.db.prepare("SELECT * FROM users WHERE status = 'blocked'").all() as Row[]).map((r): BlockEntry => ({
+      kind: 'account', value: r.id, label: r.username ?? r.id, reason: r.blocked_reason ?? '', by: r.blocked_by ?? '', at: r.blocked_at ?? '',
+    }));
+    return [...listed, ...accounts].sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  // ---- reports ----
+
+  /** Files a report; false if this person already has one open for this mod. */
+  report(userId: string, modId: string, reason: ReportReason, note: string, now = new Date()): boolean {
+    const r = this.db.prepare('INSERT INTO reports (mod_id, user_id, reason, note, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
+      .run(modId, userId, reason, note, now.toISOString());
+    return Number(r.changes) > 0;
+  }
+
+  closeReport(id: number, by: string, note: string, now = new Date()): Report | undefined {
+    this.db.prepare("UPDATE reports SET status = 'closed', closed_by = ?, closed_at = ?, close_note = ? WHERE id = ? AND status = 'open'").run(by, now.toISOString(), note, id);
+    return this.reports('all').find((r) => r.id === id);
+  }
+
+  /** Reports, open ones first, newest first. */
+  reports(which: 'open' | 'all' = 'all', limit = 200): Report[] {
+    const rows = this.db.prepare(`SELECT r.*, coalesce(u.username, u.id) AS by_name FROM reports r LEFT JOIN users u ON u.id = r.user_id
+      ${which === 'open' ? "WHERE r.status = 'open'" : ''} ORDER BY r.status = 'closed', r.created_at DESC LIMIT ?`).all(limit) as Row[];
+    return rows.map((r) => ({
+      id: r.id, modId: r.mod_id, by: r.by_name ?? undefined, reason: r.reason, note: r.note, createdAt: r.created_at, status: r.status,
+      closedBy: r.closed_by ?? undefined, closedAt: r.closed_at ?? undefined, closeNote: r.close_note ?? undefined,
+    }));
+  }
+
+  // ---- spot reviews ----
+
+  markReviewed(modId: string, version: string, by: string, now = new Date()): void {
+    this.db.prepare('INSERT INTO spot_reviews VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING').run(modId, version, by, now.toISOString());
+  }
+
+  // ---- people, for admins ----
+
+  adminUsers(q = '', limit = 200): AdminUser[] {
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = this.db.prepare(`SELECT u.*, (SELECT count(*) FROM downloads d WHERE d.user_id = u.id) AS n_downloads, (SELECT count(*) FROM likes l WHERE l.user_id = u.id) AS n_likes
+      FROM users u WHERE ? = '' OR u.username LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\' OR u.github_login LIKE ? ESCAPE '\\' OR u.id = ?
+      ORDER BY u.created_at DESC LIMIT ?`).all(q, like, like, like, q, limit) as Row[];
+    return rows.map((r) => ({ ...toUser(r), blockedReason: r.blocked_reason ?? undefined, downloads: r.n_downloads, likes: r.n_likes }));
   }
 
   // ---- the audit log ----

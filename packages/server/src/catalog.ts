@@ -74,6 +74,40 @@ export interface DownloadedMod {
   shownVersion?: string;
 }
 
+/** A mod in the Admin page's list: every mod in the index, showing or not, and why not. */
+export interface AdminMod {
+  id: string;
+  name: string;
+  ownerLogin: string;
+  ownerId: number;
+  repo: string;
+  repoId: number;
+  latest?: string;
+  shownVersion?: string;
+  /** The modder's adult flag, and an admin's override if there is one. */
+  adult: boolean;
+  adultOverride?: boolean;
+  moderation?: 'hidden' | 'blocked';
+  moderationReason?: string;
+  /** Hidden because its GitHub account or repository is on the blocklist. */
+  blockedBy?: 'github' | 'repo';
+  openReports: number;
+  downloads: number;
+  runsCode: boolean;
+}
+
+/** A release that merged by itself and no admin has looked over yet. */
+export interface SpotReview {
+  id: string;
+  name: string;
+  version: string;
+  ownerLogin: string;
+  publishedAt?: string;
+  firstPublished?: string;
+  runsCode: boolean;
+  adult: boolean;
+}
+
 /** A mod in its owner's list, whether or not it shows yet. */
 export interface OwnedMod {
   id: string;
@@ -169,11 +203,15 @@ export class Catalog {
 
   /** Counts of what shows; adult mods only when the viewer opted in (health checks count everything). */
   info(adult = true): { builtAt: string; mods: number; modders: number } {
-    const row = this.db.prepare(`${this.shownSql()} SELECT count(*) AS mods, count(DISTINCT owner_id) AS modders FROM shown ${adult ? '' : 'WHERE adult = 0'}`).get() as Row;
+    const row = this.db.prepare(`${this.shownSql()} SELECT count(*) AS mods, count(DISTINCT owner_id) AS modders FROM shown ${adult ? '' : 'WHERE adult_now = 0'}`).get() as Row;
     return { builtAt: this.builtAt, mods: row.mods, modders: row.modders };
   }
 
-  /** The release rule. Every query that shows mods starts from these two views. */
+  /**
+   * The release rule. Every query that shows mods starts from these two views. A mod drops off when an admin hid or
+   * blocked it, or blocked its GitHub account or repository (R3e). `adult_now` is the adult flag with an admin's
+   * override applied; every query uses it, never `adult`.
+   */
   private shownSql(): string {
     const passed = this.options.showUnchecked
       ? '1'
@@ -186,9 +224,12 @@ export class Catalog {
           EXISTS (SELECT 1 FROM site.release_checks c, json_each(c.downloads) d
                   WHERE c.mod_id = m.id AND c.version = v.version AND json_array_length(d.value, '$.contents.runsCode') > 0) AS runs_code,
           (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes,
-          (SELECT count(*) FROM site.downloads d WHERE d.mod_id = m.id) AS downloads
+          (SELECT count(*) FROM site.downloads d WHERE d.mod_id = m.id) AS downloads,
+          coalesce((SELECT o.adult FROM site.mod_overrides o WHERE o.mod_id = m.id), m.adult) AS adult_now
         FROM mods m JOIN visible v ON v.mod_id = m.id AND v.pick = 1
         WHERE NOT EXISTS (SELECT 1 FROM site.moderation x WHERE x.mod_id = m.id AND x.status <> 'visible')
+          AND NOT EXISTS (SELECT 1 FROM site.blocklist b WHERE (b.kind = 'github' AND b.value = CAST(m.owner_id AS TEXT))
+                                                         OR (b.kind = 'repo' AND b.value = CAST(m.repo_id AS TEXT)))
       )`;
   }
 
@@ -197,7 +238,7 @@ export class Catalog {
     const where = (skip?: 'type' | 'tag' | 'needs' | 'nocode'): { sql: string; params: Params } => {
       const parts: string[] = [];
       const params: Params = {};
-      if (!query.adult) parts.push('s.adult = 0');
+      if (!query.adult) parts.push('s.adult_now = 0');
       if (match) {
         parts.push('s.id IN (SELECT id FROM mods_search WHERE mods_search MATCH :match)');
         params.match = match;
@@ -280,7 +321,7 @@ export class Catalog {
   /** The mods a person likes, most recently liked first. */
   likedBy(userId: string, adult: boolean): Card[] {
     const rows = this.db.prepare(`${this.shownSql()} SELECT s.* FROM shown s JOIN site.likes l ON l.mod_id = s.id AND l.user_id = ?
-      ${adult ? '' : 'WHERE s.adult = 0'} ORDER BY l.created_at DESC LIMIT 200`).all(userId) as Row[];
+      ${adult ? '' : 'WHERE s.adult_now = 0'} ORDER BY l.created_at DESC LIMIT 200`).all(userId) as Row[];
     return rows.map(toCard);
   }
 
@@ -296,6 +337,44 @@ export class Catalog {
       FROM mine d LEFT JOIN mods m ON m.id = d.mod_id LEFT JOIN shown s ON s.id = d.mod_id
       WHERE d.n = 1 ORDER BY d.at DESC LIMIT 200`).all(userId) as Row[];
     return rows.map((r) => ({ id: r.mod_id, name: r.name ?? undefined, version: r.version, downloadedAt: r.at, shownVersion: r.shown_version ?? undefined }));
+  }
+
+  /** Every mod in the index for the Admin page, matching a search on id, name or owner, with why any is not showing. */
+  adminMods(q = '', limit = 200): AdminMod[] {
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = this.db.prepare(`${this.shownSql()} SELECT m.id, m.name, m.owner_login, m.owner_id, m.repo, m.repo_id, m.latest, m.adult,
+        s.version AS shown_version, coalesce(s.runs_code, 0) AS runs_code, x.status AS moderation, x.reason AS moderation_reason, o.adult AS adult_override,
+        CASE WHEN EXISTS (SELECT 1 FROM site.blocklist b WHERE b.kind = 'github' AND b.value = CAST(m.owner_id AS TEXT)) THEN 'github'
+             WHEN EXISTS (SELECT 1 FROM site.blocklist b WHERE b.kind = 'repo' AND b.value = CAST(m.repo_id AS TEXT)) THEN 'repo' END AS blocked_by,
+        (SELECT count(*) FROM site.reports r WHERE r.mod_id = m.id AND r.status = 'open') AS open_reports,
+        (SELECT count(*) FROM site.downloads d WHERE d.mod_id = m.id) AS downloads
+      FROM mods m LEFT JOIN shown s ON s.id = m.id LEFT JOIN site.moderation x ON x.mod_id = m.id AND x.status <> 'visible'
+        LEFT JOIN site.mod_overrides o ON o.mod_id = m.id
+      WHERE ? = '' OR m.id LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.owner_login LIKE ? ESCAPE '\\'
+      ORDER BY open_reports DESC, m.name COLLATE NOCASE LIMIT ?`).all(q, like, like, like, limit) as Row[];
+    return rows.map((r) => ({
+      id: r.id, name: r.name, ownerLogin: r.owner_login, ownerId: r.owner_id, repo: r.repo, repoId: r.repo_id, latest: r.latest ?? undefined,
+      shownVersion: r.shown_version ?? undefined, adult: Boolean(r.adult), adultOverride: r.adult_override === null || r.adult_override === undefined ? undefined : Boolean(r.adult_override),
+      moderation: r.moderation ?? undefined, moderationReason: r.moderation_reason || undefined, blockedBy: r.blocked_by ?? undefined,
+      openReports: r.open_reports, downloads: r.downloads, runsCode: Boolean(r.runs_code),
+    }));
+  }
+
+  /** One mod in the index by id, showing or not (for the Admin page's actions). */
+  indexed(id: string): { id: string; name: string; ownerLogin: string; ownerId: number; repo: string; repoId: number } | undefined {
+    const r = this.db.prepare('SELECT id, name, owner_login, owner_id, repo, repo_id FROM mods WHERE id = ?').get(id) as Row | undefined;
+    return r && { id: r.id, name: r.name, ownerLogin: r.owner_login, ownerId: r.owner_id, repo: r.repo, repoId: r.repo_id };
+  }
+
+  /** Releases that show and no admin has marked reviewed, newest first: the spot review after auto-merge. */
+  spotReviews(limit = 20): SpotReview[] {
+    const rows = this.db.prepare(`${this.shownSql()} SELECT s.id, s.name, s.version, s.owner_login, s.shown_at, s.first_published, s.runs_code, s.adult_now
+      FROM shown s WHERE NOT EXISTS (SELECT 1 FROM site.spot_reviews v WHERE v.mod_id = s.id AND v.version = s.version)
+      ORDER BY s.shown_at DESC LIMIT ?`).all(limit) as Row[];
+    return rows.map((r) => ({
+      id: r.id, name: r.name, version: r.version, ownerLogin: r.owner_login, publishedAt: r.shown_at ?? undefined,
+      firstPublished: r.first_published ?? undefined, runsCode: Boolean(r.runs_code), adult: Boolean(r.adult_now),
+    }));
   }
 
   /** A modder's mods by their GitHub user id, including those that do not show yet. */
@@ -377,7 +456,7 @@ function toCard(r: Row): Card {
     size: r.size,
     firstPublished: r.first_published ?? undefined,
     lastUpdated: r.shown_at ?? undefined,
-    adult: Boolean(r.adult),
+    adult: Boolean(r.adult_now ?? r.adult),
     runsCode: Boolean(r.runs_code),
     card: r.card,
     likes: r.likes ?? 0,

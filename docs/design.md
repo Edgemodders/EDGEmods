@@ -293,6 +293,19 @@ The owner already runs a self-hosted GitHub runner on an AWS Linux server, to st
 | Audit log | Every admin action, with who, what and when | Needed once there are several admins |
 | Spot reviews | The admin page lists recently auto-merged mods, and later the agent review's results | The review after auto-merge |
 
+**Built 2026-11-21 (R3e), agreed with the owner that day.** `/admin` has six tabs, each action a form that works without JavaScript, checked same-origin and written to the log:
+
+| Tab | What it does |
+|---|---|
+| Overview | Counts, and the spot review: releases that show and no admin has marked reviewed, newest first, with Look and Reviewed (`spot_reviews` in `site.db`) |
+| Mods | Every mod in the index, showing or not, searchable. One action per row with a private reason: Hide, Block, Show again; Mark 18+, Mark not 18+, 18+ as the modder says (`mod_overrides`; the site uses the override everywhere); Block the GitHub account; Block the repository |
+| Users | Accounts, searchable. Block ends every session and refuses the next sign-in, with a private reason; Unblock. An admin cannot block their own account |
+| Reports | Signed-in players report a mod from its page: a reason (does not work, malware, someone else's work, adult content not marked, something else) and an optional note; one open report per person and mod. Admins close each with a private note on what was done |
+| Blocklist | GitHub accounts and repositories, added by name; GitHub gives the numeric id, which is what is kept, so a rename changes nothing. A blocked GitHub account's mods are hidden, its sessions end and it cannot sign in; a blocked repository's mods are hidden. Blocked EDGEmods accounts are listed here too |
+| Log | Every admin action: who, what, when, the detail |
+
+The merge checks' side: `POST /api/v1/blocklist/check` with `{ github, repo }` (GitHub ids), signed like check results (`EDGEMODS_CHECKS_SECRET`), answers `{ blocked, github, repo }`. The registry workflow starts asking it once the server is live (R3h); before that, every publish would fail. **Not built, on purpose:** removing a mod from the registry (a pull request from EDGEmods' GitHub App, which needs the App's key on the server: R3h), and changing a mod's tags or type (search would need rebuilding around the change; the adult override covers the urgent case).
+
 ## The EDGEmods extension (Decided)
 
 | Feature | What it does |

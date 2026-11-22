@@ -11,7 +11,9 @@ import { isVersion } from '@edgemodders/edgemods-format';
 import { Accounts, methodOf, safeReturn, sameOrigin, signedInFrom } from './accounts.js';
 import { CONNECTIONS, type Fetch, type Method } from './auth0.js';
 import { serveDownload } from './downloads.js';
-import { adminPage } from './pages/admin.js';
+import { ADMIN_NOTES, ADMIN_TABS, adminPage, type AdminNote, type AdminTab } from './pages/admin.js';
+import { githubRepo, githubUser } from './github-lookup.js';
+import { REPORT_REASONS, type ReportReason, type User } from './site-store.js';
 import { HOLD_MS, Usernames } from './usernames.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
@@ -191,7 +193,7 @@ export function createApp(deps: AppDeps): express.Express {
       return fail('Auth0\'s answer could not be checked, so you are not signed in. Try again in a moment.', 502);
     }
     const user = site.upsertUser(signedInFrom(claims));
-    if (user.status === 'blocked') return fail('This account is blocked on EDGEmods.', 403);
+    if (user.status === 'blocked' || (user.githubId !== undefined && site.isBlocked('github', user.githubId))) return fail('This account is blocked on EDGEmods.', 403);
     res.append('Set-Cookie', accounts.startSession(user.id));
     res.redirect(303, pending.returnTo);
   });
@@ -360,7 +362,27 @@ export function createApp(deps: AppDeps): express.Express {
     const m = findMod(req, res);
     if (!m) return;
     const tab = (MOD_TABS as readonly string[]).includes(String(req.query.tab)) ? (req.query.tab as ModTab) : 'about';
-    send(res, modPage(ctxOf(req), catalog, m, tab));
+    const reported = req.query.reported === '1' ? 'sent' : req.query.reported === 'already' ? 'already' : undefined;
+    send(res, modPage(ctxOf(req), catalog, m, tab, reported));
+  });
+
+  // A signed-in player reports a mod to the admins; one open report per person and mod.
+  app.post('/mods/:id/report', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = accounts.userOf(req);
+    if (!user) {
+      res.redirect(303, `/signin?return=${encodeURIComponent(`/mods/${encodeURIComponent(String(req.params.id))}`)}`);
+      return;
+    }
+    const m = catalog.mod(String(req.params.id));
+    const reason = field(req, 'reason');
+    if (!m || (m.adult && !user.adult) || !(reason in REPORT_REASONS)) {
+      send(res, notFound(ctxOf(req)), 404);
+      return;
+    }
+    const note = field(req, 'note').replace(/[^\P{C}\n]/gu, '').trim().slice(0, 1000);
+    const sent = site.report(user.id, m.id, reason as ReportReason, note);
+    res.redirect(303, `/mods/${encodeURIComponent(m.id)}?reported=${sent ? '1' : 'already'}`);
   });
 
   app.get('/mods/:id/images/*path', async (req, res) => {
@@ -413,7 +435,150 @@ export function createApp(deps: AppDeps): express.Express {
     const user = adminOf(req, res);
     if (!user) return;
     noStore(res);
-    send(res, adminPage(ctxOf(req), { totals: site.totals(), mods: catalog.info().mods, downloads: config.downloads, audit: site.auditLog() }));
+    const tab = (ADMIN_TABS as readonly string[]).includes(String(req.query.tab)) ? (req.query.tab as AdminTab) : 'overview';
+    const note = Object.keys(ADMIN_NOTES).includes(String(req.query.note)) ? (req.query.note as AdminNote) : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+    const reports = site.reports('all');
+    send(res, adminPage(ctxOf(req), {
+      tab, q, note, me: user.id,
+      totals: site.totals(), mods: catalog.info().mods, downloads: config.downloads,
+      spot: catalog.spotReviews(),
+      modList: catalog.adminMods(tab === 'mods' ? q : ''),
+      users: site.adminUsers(tab === 'users' ? q : ''),
+      reports,
+      names: new Map(reports.map((r) => [r.modId, catalog.indexed(r.modId)?.name ?? r.modId])),
+      blocklist: site.blocklist(),
+      audit: site.auditLog(),
+    }));
+  });
+
+  /** Who an admin is in the log: their username, or their user id. */
+  const who = (u: User): string => u.username ?? u.id;
+  const reasonOf = (req: Request): string => field(req, 'reason').replace(/\p{C}/gu, '').trim().slice(0, 300);
+  const backToAdmin = (res: Response, tab: AdminTab, note: AdminNote): void => {
+    res.redirect(303, `/admin?tab=${tab}&note=${note}`);
+  };
+
+  // A mod: hide, block, show again, the adult flag, block its GitHub account or repository, or mark a release reviewed.
+  app.post('/admin/mods/:id', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = adminOf(req, res);
+    if (!user) return;
+    const m = catalog.indexed(String(req.params.id));
+    if (!m) return backToAdmin(res, 'mods', 'unknown');
+    const by = who(user);
+    const reason = reasonOf(req);
+    switch (field(req, 'action')) {
+      case 'hide':
+        site.setModeration(m.id, 'hidden', by, reason);
+        site.log(by, 'Hid a mod', `${m.id}${reason ? `: ${reason}` : ''}`);
+        return backToAdmin(res, 'mods', 'hidden');
+      case 'block':
+        site.setModeration(m.id, 'blocked', by, reason);
+        site.log(by, 'Blocked a mod', `${m.id}${reason ? `: ${reason}` : ''}`);
+        return backToAdmin(res, 'mods', 'blocked');
+      case 'show':
+        site.setModeration(m.id, 'visible', by, reason);
+        site.log(by, 'Showed a mod again', m.id);
+        return backToAdmin(res, 'mods', 'shown');
+      case 'adult-yes':
+      case 'adult-no':
+      case 'adult-auto': {
+        const value = { 'adult-yes': true, 'adult-no': false, 'adult-auto': undefined }[field(req, 'action') as 'adult-yes'];
+        site.setAdultOverride(m.id, value, by);
+        site.log(by, 'Changed a mod\'s adult flag', `${m.id}: ${value === undefined ? 'as the modder says' : value ? '18+' : 'not 18+'}`);
+        return backToAdmin(res, 'mods', 'adult');
+      }
+      case 'block-github':
+        site.block('github', m.ownerId, m.ownerLogin, by, reason);
+        site.log(by, 'Blocked a GitHub account', `${m.ownerLogin} (id ${m.ownerId}), from ${m.id}${reason ? `: ${reason}` : ''}`);
+        return backToAdmin(res, 'mods', 'github-blocked');
+      case 'block-repo':
+        site.block('repo', m.repoId, m.repo, by, reason);
+        site.log(by, 'Blocked a repository', `${m.repo} (id ${m.repoId})${reason ? `: ${reason}` : ''}`);
+        return backToAdmin(res, 'mods', 'repo-blocked');
+      case 'reviewed': {
+        const version = field(req, 'version');
+        if (!isVersion(version)) return backToAdmin(res, 'overview', 'unknown');
+        site.markReviewed(m.id, version, by);
+        site.log(by, 'Reviewed a release', `${m.id} ${version}`);
+        return backToAdmin(res, 'overview', 'reviewed');
+      }
+      default:
+        return backToAdmin(res, 'mods', 'unknown');
+    }
+  });
+
+  // An EDGEmods account: block (signed out everywhere, sign-in refused) or unblock. Never your own.
+  app.post('/admin/users/:id', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = adminOf(req, res);
+    if (!user) return;
+    const target = site.user(String(req.params.id));
+    if (!target) return backToAdmin(res, 'users', 'unknown');
+    const by = who(user);
+    const action = field(req, 'action');
+    if (action === 'block') {
+      if (target.id === user.id) return backToAdmin(res, 'users', 'not-yourself');
+      const reason = reasonOf(req);
+      site.setStatus(target.id, 'blocked', by, reason);
+      site.log(by, 'Blocked an account', `${target.username ?? target.id}${reason ? `: ${reason}` : ''}`);
+      return backToAdmin(res, 'users', 'user-blocked');
+    }
+    if (action === 'unblock') {
+      site.setStatus(target.id, 'active', by);
+      site.log(by, 'Unblocked an account', target.username ?? target.id);
+      return backToAdmin(res, 'users', 'user-unblocked');
+    }
+    backToAdmin(res, 'users', 'unknown');
+  });
+
+  // The blocklist: add a GitHub account or repository by name (GitHub gives its id), or take one off.
+  app.post('/admin/blocklist', form, async (req, res) => {
+    if (refuse(req, res)) return;
+    const user = adminOf(req, res);
+    if (!user) return;
+    const by = who(user);
+    const kind = field(req, 'kind');
+    if (kind !== 'github' && kind !== 'repo') return backToAdmin(res, 'blocklist', 'unknown');
+    if (field(req, 'action') === 'remove') {
+      const value = field(req, 'value');
+      if (!site.unblock(kind, value)) return backToAdmin(res, 'blocklist', 'unknown');
+      site.log(by, kind === 'github' ? 'Unblocked a GitHub account' : 'Unblocked a repository', `id ${value}`);
+      return backToAdmin(res, 'blocklist', 'unblocked');
+    }
+    const name = field(req, 'name').trim();
+    const reason = reasonOf(req);
+    let found: { id: number; label: string } | undefined;
+    try {
+      const token = config.downloads.githubToken;
+      if (kind === 'github') {
+        const u = await githubUser(name, deps.githubFetch, token);
+        found = u && { id: u.id, label: u.login };
+      } else {
+        const r = await githubRepo(name, deps.githubFetch, token);
+        found = r && { id: r.id, label: r.fullName };
+      }
+    } catch (err) {
+      console.error(`blocklist lookup ${name}: ${err instanceof Error ? err.message : err}`);
+      return backToAdmin(res, 'blocklist', 'github-down');
+    }
+    if (!found) return backToAdmin(res, 'blocklist', 'not-found');
+    site.block(kind, found.id, found.label, by, reason);
+    site.log(by, kind === 'github' ? 'Blocked a GitHub account' : 'Blocked a repository', `${found.label} (id ${found.id})${reason ? `: ${reason}` : ''}`);
+    backToAdmin(res, 'blocklist', kind === 'github' ? 'github-blocked' : 'repo-blocked');
+  });
+
+  app.post('/admin/reports/:id', form, (req, res) => {
+    if (refuse(req, res)) return;
+    const user = adminOf(req, res);
+    if (!user) return;
+    const id = Number(req.params.id);
+    const note = field(req, 'note').replace(/\p{C}/gu, '').trim().slice(0, 500);
+    const closed = field(req, 'action') === 'close' && Number.isInteger(id) ? site.closeReport(id, who(user), note) : undefined;
+    if (!closed) return backToAdmin(res, 'reports', 'unknown');
+    site.log(who(user), 'Closed a report', `#${id} on ${closed.modId}${note ? `: ${note}` : ''}`);
+    backToAdmin(res, 'reports', 'closed');
   });
 
   // Every download, from the website or (R4) the extension, comes through here: it needs a sign-in, counts the download
@@ -526,6 +691,28 @@ export function createApp(deps: AppDeps): express.Express {
     const checkedAt = typeof result.checkedAt === 'string' && !Number.isNaN(Date.parse(result.checkedAt)) ? new Date(result.checkedAt).toISOString() : new Date().toISOString();
     site.recordCheck({ mod: result.mod, version: result.version, ok: result.ok, checkedAt, downloads: result.downloads, report: result.steps ?? [] });
     res.status(204).end();
+  });
+
+  app.post('/api/v1/blocklist/check', express.raw({ type: 'application/json', limit: '10kb' }), (req, res) => {
+    if (!config.checksSecret) {
+      res.status(503).json({ error: 'not-configured' });
+      return;
+    }
+    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (!signatureOk(config.checksSecret, body, req.get('x-edgemods-signature'))) {
+      res.status(401).json({ error: 'bad-signature' });
+      return;
+    }
+    let q: any;
+    try {
+      q = JSON.parse(body.toString('utf8'));
+    } catch {
+      res.status(400).json({ error: 'not-json' });
+      return;
+    }
+    const github = Number.isSafeInteger(q?.github) && site.isBlocked('github', q.github);
+    const repo = Number.isSafeInteger(q?.repo) && site.isBlocked('repo', q.repo);
+    res.set('Cache-Control', 'no-store').json({ blocked: github || repo, github, repo });
   });
 
   app.use('/api', (_req, res) => {

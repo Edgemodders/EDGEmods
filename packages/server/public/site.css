@@ -402,3 +402,21 @@ a.like { text-decoration: none; }
 td.n.left { text-align: left; }
 a.st { text-decoration: none; }
 a.st:hover { border-color: var(--yellow); }
+/* R3e: the Admin page's tabs and row forms, and the Report form on mod pages. */
+.adminsearch { margin: 18px 0 12px; }
+.adminsearch .search, .blockform .search { max-width: 300px; }
+.rowact { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.rowact .search { max-width: 200px; padding-block: 6px; font-size: 15px; }
+.rowact .sort { margin-left: 0; }
+td.acts form { display: inline; }
+td small { display: block; color: var(--dim); font-size: 13px; }
+.wrapnote { white-space: pre-wrap; max-width: 360px; }
+.blockform { margin: 18px 0 8px; }
+.report summary { cursor: pointer; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.report summary:hover { color: var(--red); }
+.report form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.report fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.report .toggle { font-size: 16px; }
+.report textarea { width: 100%; resize: vertical; font: inherit; }
+.rowact .sort { max-width: 180px; padding-block: 6px; }
+.rowact .search { max-width: 150px; }

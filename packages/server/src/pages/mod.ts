@@ -3,6 +3,7 @@
 // the repository away (the soft gate): no GitHub login, no repository, no GitHub download addresses.
 
 import { isModRequirement, type Requirement } from '@edgemodders/edgemods-format';
+import { REPORT_REASONS } from '../site-store.js';
 import type { Catalog, ModView, ReleaseFile, ReleaseView } from '../catalog.js';
 import { html, raw, type Html } from '../html.js';
 import { resolvePlan } from '../plan.js';
@@ -13,7 +14,7 @@ import { ICON, likeButton, page, signInHref, type PageContext } from './layout.j
 export const MOD_TABS = ['about', 'files', 'versions', 'needs'] as const;
 export type ModTab = (typeof MOD_TABS)[number];
 
-export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: ModTab): Html {
+export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: ModTab, reported?: 'sent' | 'already'): Html {
   const who = ctx.viewer;
   const shown = m.shown;
   const names = catalog.names(allMods(m));
@@ -60,6 +61,7 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
           <dt>Source</dt><dd>${who ? html`<a href="https://github.com/${m.repo}">GitHub</a>` : html`<span class="dim">Sign in to see</span>`}</dd>
         </dl></div>
         ${contentsPanel(shown)}
+        ${reportPanel(ctx, m, reported)}
       </aside>
     </div>
     <div class="tabs" id="tabs" role="tablist">${tabs.map(([key, label]) => html`<a role="tab" href="?tab=${key}#tabs" data-tab="${key}" aria-selected="${key === tab ? 'true' : 'false'}" aria-controls="tab-${key}">${label}</a>`)}</div>
@@ -82,6 +84,25 @@ export function managerLink(id: string, version: string): string {
 function manualHref(m: ModView, r: ReleaseView): string {
   const only = r.files.length === 1 ? r.files[0] : undefined;
   return only ? `/download/${encodeURIComponent(m.id)}/${encodeURIComponent(r.version)}/${encodeURIComponent(only.name)}` : '?tab=files#tabs';
+}
+
+/** Report this mod to the admins: signed-in players only, a form inside a <details>, so it works without JavaScript. */
+function reportPanel(ctx: PageContext, m: ModView, reported?: 'sent' | 'already'): Html {
+  if (reported) {
+    return html`<p class="panel note" role="status">${reported === 'sent'
+      ? 'Thanks: your report went to the EDGEmods admins.'
+      : 'You already reported this mod, and an admin has not closed it yet.'}</p>`;
+  }
+  if (!ctx.viewer) return html``;
+  return html`<details class="panel report"><summary>Report this mod</summary>
+    <form method="post" action="/mods/${encodeURIComponent(m.id)}/report">
+      <fieldset><legend class="sr">Why</legend>
+        ${Object.entries(REPORT_REASONS).map(([key, label], i) => html`<label class="toggle"><input type="radio" name="reason" value="${key}"${i === 0 ? html` required` : ''}> ${label}</label>`)}
+      </fieldset>
+      <label class="sr" for="report-note">What is wrong</label>
+      <textarea class="search" id="report-note" name="note" maxlength="1000" rows="3" placeholder="What is wrong? (optional; only admins see it)"></textarea>
+      <button class="btn sm danger" type="submit">Send report</button>
+    </form></details>`;
 }
 
 function contentsPanel(r: ReleaseView): Html {

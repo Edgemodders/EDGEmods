@@ -20,7 +20,9 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 - Your account page: your profile, liked mods, your published mods (with a GitHub sign-in) and settings, including whether to show adult mods.
 - Downloads: signed in, download any file of a mod from its Files and Versions tabs. Mod cards and pages show how many times a mod was downloaded, and Browse can sort by Most downloaded.
 - Downloaded mods, on your account page: every mod you downloaded, the version you got, and a note when a newer version is out.
-- Admins have an Admin page, from the account menu: an overview and a log of every admin change.
+- Admins have an Admin page, from the account menu.
+- Report a mod to the admins from its page, when it does not work, looks harmful, is someone else's work or is adult content not marked 18+.
+- The Admin page has tabs: an overview with the newest releases to look over, mods (hide, block, mark 18+), users (block and unblock), reports, the blocklist (GitHub accounts and repositories) and the log.
 - Download everything EDGEmods keeps about you, and delete your account.
 - Email-and-password accounts can ask for a link to change their password.
 
