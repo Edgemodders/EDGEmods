@@ -339,7 +339,7 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | R4c Install | `openLink(url)` for EDGEdeck's links, an Install button and command: the plan, "Install X and N requirements?", every file downloaded and checked against its SHA-256, then EDGEdeck installs them, all or nothing, with an offer to deploy. Needs EDGEdeck#16's part 2; until then Install offers to save the files | Mod manager on the website goes all the way into EDGEdeck; then a mod found in VS Code runs in the game |
 | R4d MCP server | `mods_search`, `mods_info`, `mods_plan`, `mods_install`, reusing the core; install shows the tree first | A Claude session finds and installs the test mod |
 
-**Built:** R4a (2026-11-22; the owner's hand test passed that day). R4b (2026-11-22), with how it works:
+**Built:** R4a (2026-11-22; the owner's hand test passed that day). R4b (2026-11-22; the owner's hand test passed that day: "Everything works"), with how it works:
 
 | Part | How |
 |---|---|
