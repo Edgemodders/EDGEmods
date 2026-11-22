@@ -25,6 +25,7 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 - The Admin page has tabs: an overview with the newest releases to look over, mods (hide, block, mark 18+), users (block and unblock), reports, the blocklist (GitHub accounts and repositories) and the log.
 - Download everything EDGEmods keeps about you, and delete your account.
 - Email-and-password accounts can ask for a link to change their password.
+- The EDGEmods extension for VS Code can sign in to the website: the same account, with its downloads counted the same way.
 
 ### Changed
 

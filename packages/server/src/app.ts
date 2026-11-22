@@ -14,7 +14,7 @@ import { serveDownload } from './downloads.js';
 import { ADMIN_NOTES, ADMIN_TABS, adminPage, type AdminNote, type AdminTab } from './pages/admin.js';
 import { githubRepo, githubUser } from './github-lookup.js';
 import { REPORT_REASONS, type ReportReason, type User } from './site-store.js';
-import { HOLD_MS, Usernames } from './usernames.js';
+import { HOLD_MS, USERNAME_PROBLEMS, Usernames } from './usernames.js';
 import { SORTS, type Catalog, type ModView, type Query, type Sort } from './catalog.js';
 import type { Config } from './config.js';
 import { html, type Html } from './html.js';
@@ -92,11 +92,26 @@ export function createApp(deps: AppDeps): express.Express {
     next();
   });
 
+  // The VS Code extension's access token, on the API and downloads only; pages go by the cookie.
+  app.use(async (req, res, next) => {
+    if (!/^\/(api|download)\//.test(req.path)) return next();
+    const problem = await accounts.acceptToken(req);
+    if (!problem) return next();
+    res.status(problem.status).set('Cache-Control', 'no-store');
+    if (problem.status === 401) res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
+    res.json({ error: problem.error });
+  });
+
   // Someone signed in without a username picks one first; pages only, so files, the API and sign-out still work.
+  // The extension asks for one in VS Code, so a download through a token answers with what is missing.
   app.use((req, res, next) => {
     if (req.method !== 'GET' || /^\/(assets|auth|api|welcome|schema|healthz)(\/|$)/.test(req.path) || /^\/mods\/[^/]+\/images\//.test(req.path)) return next();
     const user = accounts.userOf(req);
     if (user && !user.username) {
+      if (accounts.viaToken(req)) {
+        res.status(403).set('Cache-Control', 'no-store').json({ error: 'username' });
+        return;
+      }
       res.redirect(303, `/welcome?return=${encodeURIComponent(safeReturn(req.originalUrl))}`);
       return;
     }
@@ -142,9 +157,10 @@ export function createApp(deps: AppDeps): express.Express {
   const noStore = (res: Response): void => {
     res.set('Cache-Control', 'no-store');
   };
-  /** Writes through the cookie must come from EDGEmods' own pages. True when the request was refused. */
+  /** Writes through the cookie must come from EDGEmods' own pages (a token carries no cookie, so it may write from
+   *  anywhere). True when the request was refused. */
   const refuse = (req: Request, res: Response): boolean => {
-    if (sameOrigin(req, config.publicUrl)) return false;
+    if (accounts.viaToken(req) || sameOrigin(req, config.publicUrl)) return false;
     if (req.accepts(['html', 'json']) === 'json') res.status(403).json({ error: 'cross-site' });
     else send(res, message(ctxOf(req), { title: 'Refused', eyebrow: 'Accounts', heading: html`Not from <span>here</span>`, lede: 'That request did not come from an EDGEmods page, so it was refused.' }), 403);
     return true;
@@ -595,7 +611,8 @@ export function createApp(deps: AppDeps): express.Express {
     const release = m && (!m.adult || user.adult) ? m.releases.find((r) => r.version === req.params.version) : undefined;
     const file = release?.files.find((f) => f.name === req.params.file);
     if (!m || !release || !file) {
-      send(res, notFound(ctxOf(req)), 404);
+      if (accounts.viaToken(req)) res.status(404).json({ error: 'not-found' });
+      else send(res, notFound(ctxOf(req)), 404);
       return;
     }
     // No limit on how many: every mod stays free to download (CD Projekt RED allows no paywalls on mods; the owner
@@ -605,6 +622,10 @@ export function createApp(deps: AppDeps): express.Express {
       served = await serveDownload(config.downloads, { repo: m.repo, tag: release.tag, name: file.name, assetId: file.assetId, url: file.url }, deps.githubFetch);
     } catch (err) {
       console.error(`download ${m.id} ${release.version} ${file.name}: ${err instanceof Error ? err.message : err}`);
+      if (accounts.viaToken(req)) {
+        res.status(502).json({ error: 'github' });
+        return;
+      }
       send(res, message(ctxOf(req), {
         title: 'Download did not start', eyebrow: m.name, heading: html`Download did not <span>start</span>`,
         lede: 'GitHub, where the file lives, did not answer just now. Try again in a moment.',
@@ -626,11 +647,48 @@ export function createApp(deps: AppDeps): express.Express {
   });
 
   // ---- API ----
+  // How the VS Code extension signs in: the tenant, its own application and the API. Not secret.
+  app.get('/api/v1/auth', (_req, res) => {
+    if (!auth0?.acceptsTokens) {
+      res.status(404).set('Cache-Control', 'no-cache').json({ error: 'no-sign-in' });
+      return;
+    }
+    res.set('Cache-Control', 'no-cache').json({
+      domain: auth0.config.domain,
+      clientId: auth0.config.extensionClientId,
+      audience: auth0.config.audience,
+      scope: 'openid profile email offline_access',
+      connections: CONNECTIONS,
+    });
+  });
+
   app.get('/api/v1/me', (req, res) => {
     const v = viewerOf(req);
+    const user = accounts.userOf(req);
     res.set('Cache-Control', 'no-store').json(v
-      ? { signedIn: true, name: v.name, via: v.via, github: v.github, admin: v.admin, adult: v.adult, likes: [...(v.liked ?? [])] }
+      ? {
+        signedIn: true, id: v.id, username: user ? user.username ?? null : v.name, ...(user && !user.username ? { suggestion: usernames.suggest(user) } : {}),
+        name: v.name, via: v.via, github: v.github, admin: v.admin, adult: v.adult, likes: [...(v.liked ?? [])],
+      }
       : { signedIn: false, signIn: accounts.on });
+  });
+
+  // The first username, or a new one, from the extension (the website uses /welcome and /me/username).
+  app.post('/api/v1/me/username', express.json({ limit: '2kb' }), (req, res) => {
+    if (refuse(req, res)) return;
+    res.set('Cache-Control', 'no-store');
+    const user = accounts.userOf(req);
+    if (!user) {
+      res.status(401).json({ error: 'sign-in' });
+      return;
+    }
+    const wanted = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+    const problem = usernames.claim(wanted, user);
+    if (problem) {
+      res.status(400).json({ error: problem, message: USERNAME_PROBLEMS[problem] });
+      return;
+    }
+    res.json({ username: site.user(user.id)?.username ?? wanted });
   });
 
   app.get('/api/v1/mods', (req, res) => {

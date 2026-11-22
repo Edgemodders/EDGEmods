@@ -5,6 +5,10 @@
 // Between /auth/signin and /auth/callback, the sign-in's state, nonce and PKCE verifier ride in a short-lived
 // cookie signed with EDGEMODS_SESSION_SECRET, so nothing is kept in memory and a restart does not break a sign-in
 // in progress.
+//
+// The VS Code extension signs in on its own (docs/auth0-setup.md, step 9) and sends an Auth0 access token with
+// each call to the API and downloads (`Authorization: Bearer …`). No cookie rides with those, so another site
+// cannot make them, and writes through a token need no same-origin check.
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
@@ -60,6 +64,18 @@ export function safeReturn(value: unknown): string {
   return s;
 }
 
+/** The access token a request carries, if any. */
+export function tokenOf(req: Request): string | undefined {
+  const m = /^Bearer ([A-Za-z0-9_.~+/=-]{20,4096})$/.exec(req.get('authorization') ?? '');
+  return m?.[1];
+}
+
+/** Why a request's token was not taken: the HTTP status and a short code for the extension. */
+export interface TokenProblem {
+  status: 401 | 403 | 502;
+  error: 'no-tokens' | 'invalid-token' | 'blocked' | 'auth0';
+}
+
 /** A write through the cookie must come from the site's own pages (SameSite=Lax covers forms; this covers the rest). */
 export function sameOrigin(req: Request, publicUrl: string): boolean {
   const origin = req.get('origin');
@@ -86,6 +102,7 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
 export class Accounts {
   private readonly secure: boolean;
   private readonly cache = new WeakMap<Request, User | null>();
+  private readonly tokens = new WeakSet<Request>();
 
   constructor(readonly config: Config, readonly site: SiteStore, readonly auth0?: Auth0, private readonly now: () => number = Date.now) {
     this.secure = config.publicUrl.startsWith('https:');
@@ -104,6 +121,44 @@ export class Accounts {
     const user = sid && /^[A-Za-z0-9_-]{43}$/.test(sid) ? this.site.sessionUser(sha256(sid), new Date(this.now())) : undefined;
     this.cache.set(req, user ?? null);
     return user;
+  }
+
+  /**
+   * For the API and downloads: if the request carries an access token, checks it and makes its person the request's
+   * user. A person seen for the first time is asked of Auth0's userinfo, then kept in site.db like a website sign-in.
+   * Returns why a token that is there was not taken.
+   */
+  async acceptToken(req: Request): Promise<TokenProblem | undefined> {
+    const token = tokenOf(req);
+    if (!token) return undefined;
+    if (!this.auth0?.acceptsTokens) return { status: 401, error: 'no-tokens' };
+    let claims: Claims;
+    try {
+      claims = await this.auth0.verifyAccessToken(token);
+    } catch {
+      return { status: 401, error: 'invalid-token' };
+    }
+    let user = this.site.user(claims.sub);
+    if (!user) {
+      let info: Claims;
+      try {
+        info = await this.auth0.userInfo(token);
+      } catch (err) {
+        console.error(`userinfo for a new VS Code sign-in: ${err instanceof Error ? err.message : err}`);
+        return { status: 502, error: 'auth0' };
+      }
+      if (info.sub !== claims.sub) return { status: 401, error: 'invalid-token' };
+      user = this.site.upsertUser(signedInFrom(info), new Date(this.now()));
+    }
+    if (user.status === 'blocked' || (user.githubId !== undefined && this.site.isBlocked('github', user.githubId))) return { status: 403, error: 'blocked' };
+    this.cache.set(req, user);
+    this.tokens.add(req);
+    return undefined;
+  }
+
+  /** Whether the request's person came from an access token (so no cookie, and no same-origin check). */
+  viaToken(req: Request): boolean {
+    return this.tokens.has(req);
   }
 
   isAdmin(user: User): boolean {

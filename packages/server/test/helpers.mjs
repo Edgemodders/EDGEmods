@@ -63,7 +63,7 @@ function fakeGitHub() {
 }
 
 /** Starts a test EDGEmods. Every release passes its checks except core-lib 1.3.0 (failed) and "unchecked" (none). */
-export async function start({ showUnchecked = false, viewer, checksSecret, fetchImage, tenant, admins = [], downloads = { mode: 'redirect', freeSpeed: 3 * 1024 * 1024 }, githubFetch } = {}) {
+export async function start({ showUnchecked = false, viewer, checksSecret, fetchImage, tenant, tokens = true, admins = [], downloads = { mode: 'redirect', freeSpeed: 3 * 1024 * 1024 }, githubFetch } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'edgemods-server-'));
   const indexPath = join(dir, 'index.db');
   await buildIndex({ github: fakeGitHub(), mods: MODS.map((m, i) => ({ owner: m.owner, id: m.id, entry: { schemaVersion: 1, repo: `https://github.com/${m.owner}/${m.id}`, repoId: i + 1, ownerId: (i + 1) * 10 } })), out: indexPath });
@@ -85,6 +85,7 @@ export async function start({ showUnchecked = false, viewer, checksSecret, fetch
   const auth = tenant && {
     domain: tenant.domain, clientId: 'client-1', clientSecret: 'secret-1', sessionSecret: 's'.repeat(43),
     management: { domain: tenant.domain, clientId: 'mgmt-1', clientSecret: 'mgmt-secret' },
+    ...(tokens ? { audience: API, extensionClientId: 'vscode-1' } : {}),
   };
   const config = { host: '127.0.0.1', port: 0, dataDir: dir, indexPath, publicUrl: 'https://edgemods.test', checksSecret, showUnchecked, imageMaxAge: 60, auth, authProblems: [], admins, downloads };
   const accounts = new Accounts(config, site, auth && new Auth0(auth, `${config.publicUrl}/auth/callback`, (url, init) => tenant.fetch(url, init)));
@@ -110,6 +111,8 @@ export function fakeTenant(domain = 'tenant.test') {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const t = {
     domain, claims: {}, token: undefined, challenge: undefined, deleted: [], resets: [], failDelete: false, exchanges: [],
+    /** What /userinfo says about each person, by user id; and the user ids it was asked about. */
+    profiles: {}, userinfo: [],
     jwt(claims, { alg = 'RS256', kid = 'k1', key = privateKey } = {}) {
       const body = `${b64({ alg, typ: 'JWT', kid })}.${b64(claims)}`;
       const sig = alg === 'none' ? '' : createSign('RSA-SHA256').update(body).sign(key).toString('base64url');
@@ -119,6 +122,11 @@ export function fakeTenant(domain = 'tenant.test') {
     good(nonce, extra = {}) {
       const now = Math.floor(Date.now() / 1000);
       return { iss: `https://${domain}/`, aud: 'client-1', iat: now, exp: now + 3600, nonce, ...extra };
+    },
+    /** An access token from the VS Code extension's application for the EDGEmods API. */
+    access(sub, extra = {}) {
+      const now = Math.floor(Date.now() / 1000);
+      return t.jwt({ iss: `https://${domain}/`, sub, aud: [API, `https://${domain}/userinfo`], azp: 'vscode-1', iat: now, exp: now + 3600, scope: 'openid profile email offline_access', ...extra });
     },
     otherKey: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey,
     async fetch(url, init = {}) {
@@ -141,6 +149,12 @@ export function fakeTenant(domain = 'tenant.test') {
         if (t.failDelete) return json(500, {});
         t.deleted.push(decodeURIComponent(u.pathname.slice('/api/v2/users/'.length)));
         return new Response(null, { status: 204 });
+      }
+      if (u.pathname === '/userinfo') {
+        const token = (new Headers(init.headers).get('authorization') ?? '').replace(/^Bearer /, '');
+        const sub = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString() || '{}').sub;
+        t.userinfo.push(sub);
+        return sub && t.profiles[sub] ? json(200, { sub, ...t.profiles[sub] }) : json(401, { error: 'invalid_token' });
       }
       if (u.pathname === '/dbconnections/change_password') {
         t.resets.push(JSON.parse(String(init.body)));
@@ -177,5 +191,6 @@ async function signInOnly(t, tenant, who, { method = 'github', returnTo = '/mods
 }
 
 export const ORIGIN = 'https://edgemods.test';
+export const API = 'https://edgemods.ai/api';
 
 export const sign = (secret, body) => `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;

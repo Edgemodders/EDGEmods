@@ -47,7 +47,7 @@ describe('signing in', () => {
     assert.match(setCookie, /^edgemods_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Secure; Max-Age=2592000$/);
     assert.equal(tenant.exchanges.at(-1).client_secret, 'secret-1', 'the code is exchanged with the client secret');
     const me = await (await t.get('/api/v1/me', { headers: { cookie } })).json();
-    assert.deepEqual({ ...me, likes: undefined }, { signedIn: true, name: 'bob', via: 'GitHub', github: 'bob', admin: false, adult: false, likes: undefined });
+    assert.deepEqual({ ...me, likes: undefined, id: undefined }, { signedIn: true, id: undefined, username: 'bob', name: 'bob', via: 'GitHub', github: 'bob', admin: false, adult: false, likes: undefined });
     const page = await (await t.get('/mods/street-cred', { headers: { cookie } })).text();
     assert.match(page, /<summary class="who">/);
     assert.match(page, /GitHub · bob<small class="since">Logged in since <time datetime="\d{4}-\d\d-\d\dT[^"]+Z" data-local>\d+ \w+ \d{4}, \d\d:\d\d UTC<\/time><\/small>/);

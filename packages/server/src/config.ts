@@ -53,6 +53,9 @@ export interface AuthConfig {
   clientSecret: string;
   /** The EDGEmods API's identifier, for the extension's tokens (R4). */
   audience?: string;
+  /** The VS Code extension's Native application (docs/auth0-setup.md, step 9). With the audience, the API and
+   *  downloads accept its access tokens. */
+  extensionClientId?: string;
   /** The Management API, for deleting accounts. Its domain is the tenant's own, even when sign-in uses a custom domain. */
   management?: { domain: string; clientId: string; clientSecret: string };
   /** Signs the short-lived cookie that carries a sign-in from /auth/signin to /auth/callback. */
@@ -111,9 +114,14 @@ function authConfig(env: NodeJS.ProcessEnv): { auth?: AuthConfig; authProblems: 
       clientId: needed.EDGEMODS_AUTH0_CLIENT_ID,
       clientSecret: needed.EDGEMODS_AUTH0_CLIENT_SECRET,
       audience: get('EDGEMODS_AUTH0_AUDIENCE') || undefined,
+      extensionClientId: (get('EDGEMODS_AUTH0_AUDIENCE') && get('EDGEMODS_AUTH0_EXTENSION_CLIENT_ID')) || undefined,
       management: mId && mSecret ? { domain: mDomain, clientId: mId, clientSecret: mSecret } : undefined,
       sessionSecret: needed.EDGEMODS_SESSION_SECRET,
     },
-    authProblems: mId && mSecret ? [] : ['EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID or _SECRET is not set: sign-in works, deleting an account does not.'],
+    authProblems: [
+      ...(mId && mSecret ? [] : ['EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID or _SECRET is not set: sign-in works, deleting an account does not.']),
+      ...(get('EDGEMODS_AUTH0_EXTENSION_CLIENT_ID') && !get('EDGEMODS_AUTH0_AUDIENCE') ? ['EDGEMODS_AUTH0_EXTENSION_CLIENT_ID needs EDGEMODS_AUTH0_AUDIENCE, so VS Code sign-in is off.'] : []),
+      ...(get('EDGEMODS_AUTH0_EXTENSION_CLIENT_ID') ? [] : ['EDGEMODS_AUTH0_EXTENSION_CLIENT_ID is not set: the website signs in, VS Code does not.']),
+    ],
   };
 }

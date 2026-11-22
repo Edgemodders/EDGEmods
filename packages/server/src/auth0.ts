@@ -75,6 +75,30 @@ export class Auth0 {
     return verifyJwt(token, { keys: await this.keysFor(token), issuer: this.issuer, audience: this.config.clientId, now: this.now(), nonce });
   }
 
+  /** Whether this server accepts the VS Code extension's access tokens. */
+  get acceptsTokens(): boolean {
+    return Boolean(this.config.audience && this.config.extensionClientId);
+  }
+
+  /**
+   * Checks an access token the VS Code extension sent: this tenant, the EDGEmods API, made for the extension's own
+   * application (its `azp`). Throws with a sentence.
+   */
+  async verifyAccessToken(token: string): Promise<Claims> {
+    if (!this.acceptsTokens) throw new Error('this server does not take access tokens');
+    const claims = verifyJwt(token, { keys: await this.keysFor(token), issuer: this.issuer, audience: this.config.audience!, now: this.now(), leewayMs: 0 });
+    if (claims.azp !== this.config.extensionClientId) throw new Error('the token was made for another application');
+    return claims;
+  }
+
+  /** Who an access token belongs to, from the tenant's userinfo (the access token carries no email or name). */
+  async userInfo(token: string): Promise<Claims> {
+    const res = await this.call(`https://${this.config.domain}/userinfo`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok || typeof body.sub !== 'string' || !body.sub) throw new Error(`Auth0 did not say who this is (HTTP ${res.status})`);
+    return body as Claims;
+  }
+
   /** Where to send the browser to end its Auth0 session too, then come back. */
   logoutUrl(returnTo: string): string {
     return `https://${this.config.domain}/v2/logout?${new URLSearchParams({ client_id: this.config.clientId, returnTo })}`;
