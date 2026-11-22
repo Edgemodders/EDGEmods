@@ -1,10 +1,11 @@
 // The website and API as an Express app. Pages are built here as HTML (the owner's choice, 2026-10-23: search
 // engines and link previews read them as they are); a little JavaScript in /assets/site.js improves them.
 
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createWriteStream, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isVersion } from '@edgemodders/edgemods-format';
@@ -874,6 +875,64 @@ export function createApp(deps: AppDeps): express.Express {
     res.set('Cache-Control', 'no-store').json({ blocked: github || repo, github, repo });
   });
 
+  // The index handover (docs/design.md, "Runners"): the rebuild on the owner's runner sends a fresh index.db. The
+  // body goes to a file beside the index, never into memory. X-EDGEmods-Timestamp (Unix seconds) and the body are
+  // signed together, so an old index cannot be sent again later; the service checks the file and swaps it in, or
+  // keeps the current one.
+  app.post('/api/v1/admin/index', (req, res, next) => {
+    if (!config.indexSecret) {
+      res.status(503).json({ error: 'not-configured' });
+      return;
+    }
+    const secret = config.indexSecret;
+    const ts = req.get('x-edgemods-timestamp') ?? '';
+    if (!/^\d{1,12}$/.test(ts) || Math.abs(Date.now() / 1000 - Number(ts)) > INDEX_CLOCK_SKEW_S) {
+      res.status(401).json({ error: 'bad-timestamp' });
+      return;
+    }
+    if (req.get('content-type') !== 'application/vnd.sqlite3') {
+      res.status(415).json({ error: 'not-sqlite' });
+      return;
+    }
+    const length = Number(req.get('content-length'));
+    if (!(length > 0) || length > INDEX_MAX_BYTES) {
+      res.status(413).json({ error: 'size', max: INDEX_MAX_BYTES });
+      return;
+    }
+    const file = join(dirname(config.indexPath), `index.db.upload-${randomBytes(6).toString('hex')}`);
+    const hmac = createHmac('sha256', secret).update(`${ts}.`);
+    const out = createWriteStream(file, { flags: 'wx' });
+    let size = 0;
+    const drop = () => rmSync(file, { force: true });
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > length) req.destroy();
+      hmac.update(chunk);
+    });
+    pipeline(req, out).then(() => {
+      const sig = /^sha256=([0-9a-f]{64})$/.exec(req.get('x-edgemods-signature') ?? '');
+      if (size !== length || !sig || !timingSafeEqual(hmac.digest(), Buffer.from(sig[1], 'hex'))) {
+        drop();
+        res.status(401).json({ error: 'bad-signature' });
+        return;
+      }
+      try {
+        const done = catalog.replace(file);
+        site.log('index rebuild', 'index replaced', `${done.before} mods shown before, ${done.mods} now; built ${done.builtAt}`);
+        console.log(`Index replaced: ${done.before} mods shown before, ${done.mods} now (built ${done.builtAt}).`);
+        res.set('Cache-Control', 'no-store').json({ ok: true, mods: done.mods, before: done.before, indexBuiltAt: done.builtAt });
+      } catch (err) {
+        drop();
+        const why = err instanceof Error ? err.message : String(err);
+        console.error(`Index refused: ${why}`);
+        res.status(422).json({ error: 'refused', message: why });
+      }
+    }, (err: unknown) => {
+      drop();
+      if (!res.headersSent) next(err);
+    });
+  });
+
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'not-found' });
   });
@@ -892,6 +951,10 @@ export function createApp(deps: AppDeps): express.Express {
 
   return app;
 }
+
+/** The largest index.db the handover takes, and how far its timestamp may be from the server's clock. */
+export const INDEX_MAX_BYTES = 512 * 1024 * 1024;
+const INDEX_CLOCK_SKEW_S = 600;
 
 /** The link schemes of the editors the extension's sign-in may go back to (docs/auth0-setup.md, step 9). */
 export const EDITOR_SCHEMES = ['vscode', 'vscode-insiders', 'vscodium', 'cursor', 'windsurf', 'edgekit'];

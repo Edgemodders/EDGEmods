@@ -16,6 +16,11 @@ export interface Config {
   /** Signs the release check results EDGEmods' workflow sends (POST /api/v1/checks). Unset: the endpoint is off. */
   checksSecret?: string;
   /**
+   * Signs a new index.db from the index rebuild on the owner's runner (POST /api/v1/admin/index). Its own secret,
+   * so the runner never holds the merge checks' one. Unset: the endpoint is off.
+   */
+  indexSecret?: string;
+  /**
    * Shows releases that have no release check result yet. For a developer's PC only: on the live site, a release
    * shows once it has passed.
    */
@@ -74,6 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     indexPath: resolve(env.EDGEMODS_INDEX ?? join(dataDir, 'index.db')),
     publicUrl: (env.EDGEMODS_PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
     checksSecret: env.EDGEMODS_CHECKS_SECRET || undefined,
+    indexSecret: env.EDGEMODS_INDEX_SECRET || undefined,
     showUnchecked: env.EDGEMODS_SHOW_UNCHECKED === '1',
     imageMaxAge: 86400,
     ...authConfig(env),

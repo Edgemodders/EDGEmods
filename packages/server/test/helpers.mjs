@@ -62,11 +62,17 @@ function fakeGitHub() {
   };
 }
 
+/** Builds an index.db of the test mods (or the ones `keep` names) at `out`. */
+export async function testIndex(out, keep = MODS.map((m) => m.id)) {
+  const mods = MODS.map((m, i) => ({ owner: m.owner, id: m.id, entry: { schemaVersion: 1, repo: `https://github.com/${m.owner}/${m.id}`, repoId: i + 1, ownerId: (i + 1) * 10 } }));
+  await buildIndex({ github: fakeGitHub(), mods: mods.filter((m) => keep.includes(m.id)), out });
+}
+
 /** Starts a test EDGEmods. Every release passes its checks except core-lib 1.3.0 (failed) and "unchecked" (none). */
-export async function start({ showUnchecked = false, viewer, checksSecret, fetchImage, tenant, tokens = true, admins = [], downloads = { mode: 'redirect', freeSpeed: 3 * 1024 * 1024 }, githubFetch } = {}) {
+export async function start({ showUnchecked = false, viewer, checksSecret, indexSecret, fetchImage, tenant, tokens = true, admins = [], downloads = { mode: 'redirect', freeSpeed: 3 * 1024 * 1024 }, githubFetch } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'edgemods-server-'));
   const indexPath = join(dir, 'index.db');
-  await buildIndex({ github: fakeGitHub(), mods: MODS.map((m, i) => ({ owner: m.owner, id: m.id, entry: { schemaVersion: 1, repo: `https://github.com/${m.owner}/${m.id}`, repoId: i + 1, ownerId: (i + 1) * 10 } })), out: indexPath });
+  await testIndex(indexPath);
   const site = new SiteStore(join(dir, 'site.db'));
   for (const m of MODS.filter((x) => x.id !== 'unchecked')) {
     for (const v of Object.keys(m.versions)) {
@@ -87,7 +93,7 @@ export async function start({ showUnchecked = false, viewer, checksSecret, fetch
     management: { domain: tenant.domain, clientId: 'mgmt-1', clientSecret: 'mgmt-secret' },
     ...(tokens ? { audience: API, extensionClientId: 'vscode-1' } : {}),
   };
-  const config = { host: '127.0.0.1', port: 0, dataDir: dir, indexPath, publicUrl: 'https://edgemods.test', checksSecret, showUnchecked, imageMaxAge: 60, auth, authProblems: [], admins, downloads };
+  const config = { host: '127.0.0.1', port: 0, dataDir: dir, indexPath, publicUrl: 'https://edgemods.test', checksSecret, indexSecret, showUnchecked, imageMaxAge: 60, auth, authProblems: [], admins, downloads };
   const accounts = new Accounts(config, site, auth && new Auth0(auth, `${config.publicUrl}/auth/callback`, (url, init) => tenant.fetch(url, init)));
   const app = createApp({ config, catalog, site, images, accounts, githubFetch, ...(viewer ? { viewer: () => viewer } : {}) });
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });

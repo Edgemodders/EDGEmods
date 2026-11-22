@@ -11,7 +11,7 @@ import type { Config } from './config.js';
 import { ImageCache } from './images.js';
 import { SiteStore } from './site-store.js';
 
-export async function startServer(config: Config): Promise<{ server: Server; close: () => Promise<void> }> {
+export async function startServer(config: Config): Promise<{ server: Server; close: () => Promise<void>; reload: () => void }> {
   const site = new SiteStore(join(config.dataDir, 'site.db'));
   const catalog = new Catalog(config.indexPath, site.path, { showUnchecked: config.showUnchecked });
   const images = new ImageCache(join(config.dataDir, 'images'));
@@ -27,5 +27,5 @@ export async function startServer(config: Config): Promise<{ server: Server; clo
     catalog.close();
     site.close();
   };
-  return { server, close };
+  return { server, close, reload: () => catalog.reload() };
 }

@@ -17,7 +17,7 @@ if (existsSync(envFile)) {
 
 const config = loadConfig();
 try {
-  const { server, close } = await startServer(config);
+  const { server, close, reload } = await startServer(config);
   const address = server.address();
   console.log(`EDGEmods on http://${typeof address === 'object' && address ? `${address.address}:${address.port}` : config.host}, index ${config.indexPath}`);
   if (config.showUnchecked) console.log('Showing releases that have not passed the release checks (EDGEMODS_SHOW_UNCHECKED=1): for a developer\'s PC only.');
@@ -29,6 +29,15 @@ try {
   };
   process.on('SIGTERM', () => stop('SIGTERM'));
   process.on('SIGINT', () => stop('SIGINT'));
+  // An index copied over index.db by hand: `systemctl reload edgemods` sends SIGHUP. A bad file keeps the old one.
+  process.on('SIGHUP', () => {
+    try {
+      reload();
+      console.log(`SIGHUP: index ${config.indexPath} reloaded`);
+    } catch (err) {
+      console.error(`SIGHUP: kept the old index: ${err instanceof Error ? err.message : err}`);
+    }
+  });
 } catch (err) {
   console.error(`EDGEmods could not start: ${err instanceof Error ? err.message : err}`);
   process.exit(1);

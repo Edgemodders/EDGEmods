@@ -3,7 +3,7 @@
 // passed EDGEmods' release checks; a mod shows with its newest such release that is not a pre-release (or its
 // newest pre-release if it has nothing else), unless an admin hid or blocked it.
 
-import { existsSync } from 'node:fs';
+import { existsSync, renameSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import type { Requirement } from '@edgemodders/edgemods-format';
 import { INDEX_SCHEMA_VERSION } from '@edgemodders/edgemods-indexer';
@@ -195,6 +195,35 @@ export class Catalog {
     const old = this.db;
     this.db = next;
     old.close();
+  }
+
+  /**
+   * Checks a new index file and moves it over the current one (the index handover, POST /api/v1/admin/index). The
+   * file must open, be this website's format, and keep at least half the mods that show now (a broken rebuild that
+   * lost most of the registry is refused). On any failure the current index stays and the file is left for the
+   * caller to delete. Both databases are closed before the move, as Windows cannot replace an open file; no request
+   * runs in between, because this is synchronous.
+   */
+  replace(file: string): { mods: number; builtAt: string; before: number } {
+    const before = this.info().mods;
+    const next = this.open(file);
+    let mods: number;
+    let builtAt: string;
+    try {
+      mods = (next.prepare(`${this.shownSql()} SELECT count(*) AS n FROM shown`).get() as Row).n as number;
+      builtAt = (next.prepare("SELECT value FROM meta WHERE key = 'builtAt'").get() as Row | undefined)?.value as string ?? '';
+    } finally {
+      next.close();
+      this.builtAt = (this.db.prepare("SELECT value FROM meta WHERE key = 'builtAt'").get() as Row | undefined)?.value as string ?? '';
+    }
+    if (before >= 4 && mods * 2 < before) throw new Error(`The new index shows ${mods} mods; this one shows ${before}. Refused: more than half would drop off.`);
+    this.db.close();
+    try {
+      renameSync(file, this.indexPath);
+    } finally {
+      this.db = this.open(this.indexPath);
+    }
+    return { mods, builtAt, before };
   }
 
   close(): void {
