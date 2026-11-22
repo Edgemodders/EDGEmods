@@ -2,7 +2,7 @@
 
 A mod's page on EDGEmods has two buttons: **Mod manager** and **Manual download**. Manual download gives you the file itself. Mod manager opens an `edgemods:` link, and whichever mod manager on your computer has registered for those links installs the mod, with everything it needs. This page is the link's format, for anyone writing a mod manager that supports it.
 
-**Status:** decided with the owner on 2026-11-21. The website makes these links since that day. No mod manager handles them yet: EDGEdeck's support is requested in [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16).
+**Status:** decided with the owner on 2026-11-21. The website makes these links since that day. EDGEdeck registers for them from its next release (built 2026-11-21 on its main, commit 092c946; [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16)), and passes each to the EDGEmods extension, which is not built yet (R4). Until then EDGEdeck says the extension is needed.
 
 ## Why its own kind of link
 
@@ -21,6 +21,8 @@ edgemods://install/<mod>/<version>
 | `<version>` | The release the player picked, such as `1.0.0`. Install that release, not "the newest": the player may have picked an older one on the Versions tab |
 
 Both parts are percent-encoded. Unknown actions, missing parts or anything else after them are ignored by the handler, which says the link is not one it understands.
+
+**No query string and no `#`.** A link never has `?` or `#` in it. EDGEdeck passes the whole link inside its own `vscode://` link unencoded, which is safe only because of that. Anything a later action needs goes in the path; a change to this rule needs EDGEdeck's agreement first.
 
 The link carries no web address. The handler asks the EDGEmods site it is set to use: `https://edgemods.ai` by default; a developer's PC may set `http://localhost:8800`. A link must never be able to point a handler at another server.
 
@@ -52,6 +54,6 @@ Only one program can hold it at a time. A mod manager that takes it over should 
 
 | Tool | Its part |
 |---|---|
-| EDGEdeck | Registers for `edgemods:` links next to `nxm:` ones, with the same forwarder into VS Code, and passes each link to the EDGEmods extension. Owns installing: installs the downloaded mods into the loadout, all or nothing. Requested in [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16) |
-| The EDGEmods extension (R4) | Takes the link from EDGEdeck: asks, signs in, reads the plan, downloads and checks the files, then hands them to EDGEdeck. Without the extension, EDGEdeck offers to install it |
+| EDGEdeck | Registers for `edgemods:` links when nothing else holds them, quietly, and runs the editor straight (`"<Code.exe>" --open-url -- "vscode://edgemodders.edgedeck/edgemods?url=%1"`, no shell, since any web page can open these links). It checks only the `edgemods:` scheme, then activates `edgemodders.edgemods` and awaits its `openLink(url)` with the whole link. Without the extension it says the extension is needed, with a button that shows it; with one that has no `openLink`, it asks to update it. A Set up step appears only while another program holds the links. Owns installing: installs the downloaded mods into the loadout, all or nothing (`installMods`, `edgemodsMods()`, parts 2 and 3 of [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16), built when R4 is near). Part 1 built 2026-11-21 (092c946), out with EDGEdeck's next release; not yet tried with a real browser click |
+| The EDGEmods extension (R4) | Exports `openLink(url: string): Promise<void>` from `activate()`, which EDGEdeck calls with the whole link. It asks, signs in, reads the plan, downloads and checks the files, then hands them to EDGEdeck's `installMods`. Before relying on that, it checks `typeof api.installMods === "function"` and names the lowest EDGEdeck version it needs |
 | The website | Makes the links: the Mod manager button on a mod's page, and on each release in the Versions tab |
