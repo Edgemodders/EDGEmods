@@ -352,6 +352,8 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 | Sign-in | Auth0 now returns to the site's `/auth/vscode`, a page that says "Back to VS Code" and opens the editor's link; the state starts with the editor's link scheme, from a fixed list. Windows does not bring the editor forward, and a page cannot send the browser back or reliably close its own tab, so the page says what to do |
 | Install | Says installing through EDGEdeck comes with R4c and offers to save the files |
 
+R4d's first part (2026-11-22): the MCP server, `dist/mcp.js` in the extension, started by VS Code for the agents it hosts (`mcpServerDefinitionProviders`, as EDGEdeck) or by any client with `node mcp.js --site <site>` (the command **EDGEmods: Connect an assistant (MCP)** copies the Claude Code line). Tools: `mods_search`, `mods_info`, `mods_plan`, all read-only, from `src/core/tools.ts` over the same API client. They ask the site as a visitor, so no download links and no repositories. A mod's About text and notes go back fenced and labelled as the author's, data and not instructions, cut to a length. Still to do: `mods_install` with R4c, and with it how the server, a separate process, gets the person's sign-in (it cannot read VS Code's secret storage; to be agreed with the owner then).
+
 ## Installing a mod and its requirements
 
 **Decided (the owner, 2026-10-17):** when a player picks a mod to install, the EDGEmods server assembles the dependency chain from the mods' `edgemods.json` files. The EDGEmods extension orchestrates the rest: it downloads every file in the chain from the mods' GitHub releases and hands each mod to EDGEdeck, which installs each one into the loadout.
