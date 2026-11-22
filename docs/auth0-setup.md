@@ -190,7 +190,7 @@ It is a **Native** application: it has no client secret, because anything shippe
 
    One per editor: VS Code, VS Code Insiders, EDGEkit, VSCodium, Cursor and Windsurf each open their own kind of link. The extension asks the editor it runs in which one is its own.
 
-4. Same tab, **Refresh Token Rotation**: switch on **Allow Refresh Token Rotation**. **Rotation Overlap Period:** `0`.
+4. Same tab, **Refresh Token Rotation**: switch on **Allow Refresh Token Rotation**. **Rotation Overlap Period:** `60` (seconds: two VS Code windows renewing at the same moment then do not look like a stolen token).
 5. Same tab, **Refresh Token Expiration**:
 
    | Field | Value |

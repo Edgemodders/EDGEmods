@@ -6,7 +6,8 @@
     "packages/format",
     "packages/checks",
     "packages/indexer",
-    "packages/server"
+    "packages/server",
+    "extensions/edgemods"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

@@ -44,8 +44,9 @@ npm run schema --workspace packages/format   # regenerate the JSON schema after 
 | `packages/checks` | `typescript`, `@types/node` as above. Runtime: only `packages/format`. Uses the `clamscan` (ClamAV) and `7z` (p7zip) tools when present; the registry workflow installs them on the runner. The two `.7z` tests are skipped where `7z` is missing |
 | `packages/indexer` (2026-10-23) | Runtime: `marked` 18.1.0 and `sanitize-html` 2.18.1 (MIT; 2.18.1 for a security fix). Dev: `@types/sanitize-html` 2.16.2 |
 | `packages/server` (2026-10-23) | Runtime: `express` 5.2.1 (MIT); the fonts `@fontsource/chakra-petch`, `@fontsource/rajdhani`, `@fontsource/jetbrains-mono` 5.3.0 (SIL Open Font License), served by the site itself. Dev: `@types/express` 5.0.6 |
+| `extensions/edgemods` (2026-11-22) | Runtime: only `packages/format`, bundled in. Dev: `esbuild` 0.28.2 (the bundle, as EDGEdeck does), `@types/vscode` 1.101.0 (so the extension needs VS Code 1.101 or newer), `@vscode/vsce` 4.1.0 (packaging). `npm audit` reports a moderate advisory in `minimatch` inside `vsce` (GHSA-g3hv-75wg-m249, a slow match on hostile glob patterns); vsce only reads this folder's own files, and the fix is a downgrade to vsce 3, so it stays until vsce updates |
 
-Dependencies are pinned to releases at least two weeks old, except for security fixes. `npm audit` should report nothing.
+Dependencies are pinned to releases at least two weeks old, except for security fixes. `npm audit` should report nothing beyond the vsce advisory above.
 
 `.github/workflows/test.yml` runs the same steps on every push and pull request, on Node 24.
 
@@ -65,6 +66,19 @@ Then open http://localhost:8800 (use `localhost`, not `127.0.0.1`: sign-in retur
 **Sign-in on this PC.** The server reads a `.env` file from the folder it is started in (the checkout's top; `EDGEMODS_ENV_FILE` names another), which git ignores. [Auth0 setup](auth0-setup.html), step 7, lists what goes in it. Settings already in the environment win over the file. At start the server prints `Sign-in: on, with <tenant>` or which setting is missing. Without the file the site runs without accounts and says so on the sign-in page. Sign in at http://localhost:8800/signin; your account page is http://localhost:8800/me.
 
 **Downloads.** On a PC, a download sends the browser straight to the file on GitHub (`EDGEMODS_DOWNLOADS=redirect`, the default). The live server uses `EDGEMODS_DOWNLOADS=nginx`: nginx streams the file from GitHub at `EDGEMODS_FREE_SPEED` MB a second (3 to start), through the `location` block in `deploy/nginx/edgemods-downloads.conf`, which is untested until the deploy (R3h). `EDGEMODS_GITHUB_TOKEN` raises GitHub's limit when the server asks for a file's address. Admins (the verified emails in `EDGEMODS_ADMINS`) have an Admin page at http://localhost:8800/admin.
+
+### Try the extension on this PC
+
+The extension signs in to the website running on this PC. First the website, as above, with the VS Code application's line in `.env` ([Auth0 setup](auth0-setup.html), step 9). Then build the extension into a `.vsix` and install it:
+
+```powershell
+npm run build
+cd extensions/edgemods
+npm run package                                   # dist/edgemods-0.1.0.vsix
+code --install-extension dist/edgemods-0.1.0.vsix
+```
+
+In VS Code's user settings, set `"edgemods.site": "http://localhost:8800"` (a user setting only: a folder's settings cannot change it). Then **EDGEmods: Sign in** from the Command Palette, or the EDGEmods item in the status bar. The browser opens Auth0's page; after signing in it asks to open VS Code, which finishes the sign-in. The extension's log is the **EDGEmods** output channel. `npm test --workspace extensions/edgemods` runs its tests, against stand-ins for Auth0 and the site.
 
 ## 4. Docs site and brand images
 
