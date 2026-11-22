@@ -30,6 +30,8 @@ export interface PageContext {
   /** The request's path and query, for the canonical link and the search box. */
   path: string;
   q?: string;
+  /** For the VS Code extension: the page's own content only, with no site frame, shown in an editor tab. */
+  embed?: boolean;
 }
 
 export interface PageMeta {
@@ -89,6 +91,7 @@ function accountMenu(ctx: PageContext): Html {
 }
 
 export function page(ctx: PageContext, meta: PageMeta, body: Html): Html {
+  if (ctx.embed) return body;
   const nav: [string, string, PageMeta['nav']][] = [
     // Browse already sorts by recently updated.
     ['/mods', 'Browse', 'browse'],

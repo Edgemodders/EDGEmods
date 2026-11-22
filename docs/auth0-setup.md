@@ -167,7 +167,7 @@ Say it is done, and give the tenant domain if it is not `edgemods-dev.us.auth0.c
 
 ## 9. The VS Code extension's application (R4)
 
-Added 2026-11-22, checked against Auth0's docs that day. The extension signs in the way a desktop app should: it opens your browser on the same Auth0 page as the website, and when you have signed in, Auth0 hands the answer back to VS Code through VS Code's own link handler (a `vscode://` link, the same kind EDGEdeck's links use). No local port is opened. The extension keeps a refresh token in VS Code's secret storage, so you stay signed in, and every time it is used Auth0 swaps it for a new one (rotation), so a stolen old one is worthless.
+Added 2026-11-22, checked against Auth0's docs that day. The extension signs in the way a desktop app should: it opens your browser on the same Auth0 page as the website. When you have signed in, Auth0 sends the browser to a page on the EDGEmods site (`/auth/vscode`, from R4b), which says "Back to VS Code" and hands the answer to VS Code through VS Code's own link handler (a `vscode://` link, the same kind EDGEdeck's links use). No local port is opened. The extension keeps a refresh token in VS Code's secret storage, so you stay signed in, and every time it is used Auth0 swaps it for a new one (rotation), so a stolen old one is worthless.
 
 It is a **Native** application: it has no client secret, because anything shipped inside an extension can be read by anyone. PKCE takes the secret's place.
 
@@ -179,16 +179,20 @@ It is a **Native** application: it has no client secret, because anything shippe
 
    | Field | Value |
    |---|---|
-   | Allowed Callback URLs | the six lines below, separated by commas |
+   | Allowed Callback URLs | the site's landing page, below |
    | Allowed Logout URLs | empty |
    | Allowed Web Origins | empty |
    | Allowed Origins (CORS) | empty |
 
+   On the development tenant, for the website on your PC:
+
    ```text
-   vscode://edgemodders.edgemods/auth, vscode-insiders://edgemodders.edgemods/auth, edgekit://edgemodders.edgemods/auth, vscodium://edgemodders.edgemods/auth, cursor://edgemodders.edgemods/auth, windsurf://edgemodders.edgemods/auth
+   http://localhost:8800/auth/vscode
    ```
 
-   One per editor: VS Code, VS Code Insiders, EDGEkit, VSCodium, Cursor and Windsurf each open their own kind of link. The extension asks the editor it runs in which one is its own.
+   On the production tenant: `https://edgemods.ai/auth/vscode`.
+
+   The page then opens the editor that started the sign-in: VS Code, VS Code Insiders, EDGEkit, VSCodium, Cursor or Windsurf each open their own kind of link, and the extension tells the page which one is its own. Before R4b, Auth0 sent the answer straight to those six `vscode://…/auth` links. If they are still in the list, remove them: nothing uses them now.
 
 4. Same tab, **Refresh Token Rotation**: switch on **Allow Refresh Token Rotation**. **Rotation Overlap Period:** `60` (seconds: two VS Code windows renewing at the same moment then do not look like a stolen token).
 5. Same tab, **Refresh Token Expiration**:
@@ -212,7 +216,7 @@ The extension asks for an access token for the EDGEmods API (step 4). Three sett
 3. **Application Access Policy** › **User-Delegated Access**: **Per-app authorization**. Only applications you name can then get a token for the API. The website never asks for one, so it is not affected. **Save**.
 4. **Application Access** tab: find `EDGEmods for VS Code`, **Edit**, **Grant Access** under **User-Delegated Access**. The API has no permissions to tick yet. **Save**.
 
-Auth0 may still show a short "confirm you are signing in to EDGEmods for VS Code" page after you sign in. That is on purpose: a `vscode://` link can be answered by any program on the PC that claims it, so Auth0 asks you to confirm it was you who started the sign-in.
+On the development tenant, Auth0 may still show a short "confirm you are signing in to EDGEmods for VS Code" page after you sign in. That is on purpose: Auth0 cannot verify a `localhost` address, so it asks you to confirm it was you who started the sign-in. With `https://edgemods.ai/auth/vscode` it does not ask (unverified until the production tenant exists).
 
 ### The settings file
 

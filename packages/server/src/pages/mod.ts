@@ -43,9 +43,11 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
       </div>
       <aside class="side">
         <div class="panel"><div class="actions">${who
-          ? html`<a class="btn go" href="${managerLink(m.id, shown.version)}" title="Opens your mod manager: EDGEdeck, or another that supports EDGEmods links">${ICON.box} Mod manager</a>
+          ? html`${ctx.embed
+              ? html`<a class="btn go" href="${managerLink(m.id, shown.version)}" title="Installs it with its requirements through EDGEdeck">${ICON.box} Install</a>`
+              : html`<a class="btn go" href="${managerLink(m.id, shown.version)}" title="Opens your mod manager: EDGEdeck, or another that supports EDGEmods links">${ICON.box} Mod manager</a>`}
                  <a class="btn" href="${manualHref(m, shown)}">${ICON.down} Manual download</a>
-                 <p class="gate">Mod manager installs it with its requirements in EDGEdeck, or another mod manager that supports EDGEmods links. Nothing opens? Use Manual download.</p>
+                 <p class="gate">${ctx.embed ? 'Install brings its requirements along and puts them all in your EDGEdeck library.' : 'Mod manager installs it with its requirements in EDGEdeck, or another mod manager that supports EDGEmods links. Nothing opens? Use Manual download.'}</p>
                  ${likeButton(ctx, m.id, m.likes, ' wide')}`
           : html`<a class="btn go" href="${signInHref(ctx)}">${ICON.lock} Sign in to download</a>
                  ${likeButton(ctx, m.id, m.likes, ' wide')}
@@ -173,7 +175,7 @@ function versionsPanel(ctx: PageContext, m: ModView, names: Map<string, string>)
         <p class="label">What changed</p>${r.notesHtml ? html`<div class="readme notes">${raw(r.notesHtml)}</div>` : html`<p class="dim">The author wrote no notes for this version.</p>`}
         <p class="label">Files</p><div class="vfiles">${r.files.map((f) => fileRow(ctx, m, r, f, names))}</div>
         <p class="label">Requirements</p><p>${r.requirements.length ? r.requirements.map((q, i) => html`${i ? ' · ' : ''}${requirementWords(q, names)}`) : 'None'}</p>
-        ${ctx.viewer ? html`<a class="btn sm" href="${managerLink(m.id, r.version)}">${r.version === m.shown.version ? 'Mod manager' : 'This version in a mod manager'}</a>` : html`<a class="btn sm" href="${signInHref(ctx)}">Sign in to download or install</a>`}
+        ${ctx.viewer ? html`<a class="btn sm" href="${managerLink(m.id, r.version)}">${ctx.embed ? (r.version === m.shown.version ? 'Install' : 'Install this version') : r.version === m.shown.version ? 'Mod manager' : 'This version in a mod manager'}</a>` : html`<a class="btn sm" href="${signInHref(ctx)}">Sign in to download or install</a>`}
       </div></details>`)}</div>`;
 }
 

@@ -131,6 +131,11 @@ export function createApp(deps: AppDeps): express.Express {
 
   // ---- files ----
   const longCache = { maxAge: '365d', immutable: true, index: false, fallthrough: false };
+  // The VS Code extension's tabs use the site's stylesheet and fonts; fonts from another origin need CORS.
+  app.use('/assets', (_req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    next();
+  });
   app.use('/assets', express.static(PUBLIC, { maxAge: '1h', index: false }));
   for (const [name, dir] of FONTS) app.use(`/assets/fonts/${name}`, express.static(dir, longCache));
   app.get('/schema/edgemods-1.json', (_req, res) => {
@@ -212,6 +217,32 @@ export function createApp(deps: AppDeps): express.Express {
     if (user.status === 'blocked' || (user.githubId !== undefined && site.isBlocked('github', user.githubId))) return fail('This account is blocked on EDGEmods.', 403);
     res.append('Set-Cookie', accounts.startSession(user.id));
     res.redirect(303, pending.returnTo);
+  });
+
+  // The VS Code extension's sign-in comes back here (its Auth0 callback), and this page hands it on to the editor
+  // that started it: a page in the browser that says what happened, rather than Auth0's. The state starts with the
+  // editor's link scheme (vscode, cursor, …), only from the list below; the code is useless without the verifier only
+  // the extension holds (PKCE).
+  app.get('/auth/vscode', (req, res) => {
+    noStore(res);
+    res.set('Referrer-Policy', 'no-referrer');
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const scheme = /^([a-z][a-z0-9-]{1,30})\.[A-Za-z0-9_-]{16,128}$/.exec(state)?.[1];
+    if (!scheme || !EDITOR_SCHEMES.includes(scheme)) {
+      return send(res, message(ctxOf(req), {
+        title: 'Not a VS Code sign-in', eyebrow: 'Accounts', heading: html`Not a VS Code <span>sign-in</span>`,
+        lede: 'This address finishes a sign-in started in VS Code, and this one did not come from there. Start the sign-in again from VS Code.',
+      }), 400);
+    }
+    const back = new URLSearchParams();
+    const code = typeof req.query.code === 'string' && /^[A-Za-z0-9._~-]{1,512}$/.test(req.query.code) ? req.query.code : undefined;
+    const error = typeof req.query.error === 'string' && /^[a-z_]{1,64}$/.test(req.query.error) ? req.query.error : undefined;
+    if (code) back.set('code', code);
+    if (error || !code) back.set('error', error ?? 'no_code');
+    back.set('state', state);
+    // Not send(): its no-cache would let a browser keep the page, and the code in it, for later.
+    res.type('html').set('Cache-Control', 'no-store')
+      .send(handoffPage(ctxOf(req), `${scheme}://edgemodders.edgemods/auth?${back}`, error === undefined && code !== undefined).value);
   });
 
   app.post('/auth/signout', (req, res) => {
@@ -691,6 +722,17 @@ export function createApp(deps: AppDeps): express.Express {
     res.json({ username: site.user(user.id)?.username ?? wanted });
   });
 
+  // The mods this person likes, as cards: the extension's Liked list.
+  app.get('/api/v1/me/likes', (req, res) => {
+    const user = accounts.userOf(req);
+    res.set('Cache-Control', 'no-store');
+    if (!user) {
+      res.status(401).json({ error: 'sign-in' });
+      return;
+    }
+    res.json({ cards: catalog.likedBy(user.id, user.adult) });
+  });
+
   app.get('/api/v1/mods', (req, res) => {
     const query = parseQuery(req, Boolean(viewerOf(req)?.adult));
     res.set('Cache-Control', 'no-cache').json(catalog.search(query));
@@ -704,6 +746,65 @@ export function createApp(deps: AppDeps): express.Express {
       return;
     }
     res.set('Cache-Control', 'no-cache').json(viewer ? m : forVisitors(m));
+  });
+
+  // A mod's page for the extension's editor tab: the website's own page without its frame, for the person signed in.
+  app.get('/api/v1/mods/:id/view', (req, res) => {
+    const m = catalog.mod(String(req.params.id));
+    const viewer = viewerOf(req);
+    res.set('Cache-Control', 'no-store');
+    if (!m) {
+      res.status(404).json({ error: 'not-found' });
+      return;
+    }
+    if (m.adult && !viewer?.adult) {
+      res.status(403).json({ error: 'adult', message: viewer ? 'This mod is for adults. Turn on adult mods in your settings on the website to see it.' : 'This mod is for adults. Sign in, then turn on adult mods in your settings, to see it.' });
+      return;
+    }
+    const tab = (MOD_TABS as readonly string[]).includes(String(req.query.tab)) ? (req.query.tab as ModTab) : 'about';
+    const reported = req.query.reported === 'sent' || req.query.reported === 'already' ? req.query.reported : undefined;
+    const ctx = { ...ctxOf(req), path: `/mods/${encodeURIComponent(m.id)}`, embed: true };
+    res.json({ id: m.id, name: m.name, version: m.shown.version, tab, html: modPage(ctx, catalog, m, tab, reported).value });
+  });
+
+  app.post('/api/v1/mods/:id/like', express.json({ limit: '1kb' }), (req, res) => {
+    if (refuse(req, res)) return;
+    res.set('Cache-Control', 'no-store');
+    const user = accounts.userOf(req);
+    if (!user) {
+      res.status(401).json({ error: 'sign-in' });
+      return;
+    }
+    const m = catalog.mod(String(req.params.id));
+    if (!m || (m.adult && !user.adult)) {
+      res.status(404).json({ error: 'not-found' });
+      return;
+    }
+    const liked = req.body?.like !== false;
+    site.setLike(user.id, m.id, liked);
+    res.json({ liked, likes: site.likeCount(m.id) });
+  });
+
+  app.post('/api/v1/mods/:id/report', express.json({ limit: '4kb' }), (req, res) => {
+    if (refuse(req, res)) return;
+    res.set('Cache-Control', 'no-store');
+    const user = accounts.userOf(req);
+    if (!user) {
+      res.status(401).json({ error: 'sign-in' });
+      return;
+    }
+    const m = catalog.mod(String(req.params.id));
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+    if (!m || (m.adult && !user.adult)) {
+      res.status(404).json({ error: 'not-found' });
+      return;
+    }
+    if (!(reason in REPORT_REASONS)) {
+      res.status(400).json({ error: 'reason', message: 'Choose why you are reporting this mod.' });
+      return;
+    }
+    const note = (typeof req.body?.note === 'string' ? req.body.note : '').replace(/[^\P{C}\n]/gu, '').trim().slice(0, 1000);
+    res.json({ sent: site.report(user.id, m.id, reason as ReportReason, note) });
   });
 
   app.get('/api/v1/mods/:id/install-plan', (req, res) => {
@@ -790,6 +891,22 @@ export function createApp(deps: AppDeps): express.Express {
   });
 
   return app;
+}
+
+/** The link schemes of the editors the extension's sign-in may go back to (docs/auth0-setup.md, step 9). */
+export const EDITOR_SCHEMES = ['vscode', 'vscode-insiders', 'vscodium', 'cursor', 'windsurf', 'edgekit'];
+
+/** The VS Code sign-in's page in the browser: it opens the editor (site.js follows the data-handoff link). */
+function handoffPage(ctx: PageContext, link: string, ok: boolean): Html {
+  return message(ctx, {
+    title: ok ? 'Back to VS Code' : 'Sign-in did not finish',
+    eyebrow: 'Signing in from VS Code',
+    heading: ok ? html`Back to <span>VS Code</span>` : html`Sign-in did not <span>finish</span>`,
+    lede: ok
+      ? 'Your browser is handing the sign-in to VS Code. If it asks, let it open VS Code, then go back to VS Code: it says when you are signed in. You can close this tab.'
+      : 'The sign-in was cancelled, or Auth0 did not let it through. VS Code says why; start again from there. You can close this tab.',
+    actions: html`<a class="btn go" href="${link}" data-handoff>Open VS Code</a>`,
+  });
 }
 
 function notFound(ctx: PageContext): Html {

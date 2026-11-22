@@ -84,6 +84,11 @@
       if (!isNaN(d)) t.textContent = d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
 
+    // A sign-in from VS Code: hand it to the editor straight away. The tab is not closed by script: closing it while
+    // the browser asks "Open VS Code?" would drop the sign-in, so the page says it can be closed instead.
+    var handoff = document.querySelector('a[data-handoff]');
+    if (handoff) location.href = handoff.href;
+
     // The account menu closes when you click elsewhere or press Escape.
     var menu = document.querySelector('details.usermenu');
     if (menu) {
