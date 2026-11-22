@@ -150,6 +150,7 @@ class Accounts implements vscode.AuthenticationProvider, vscode.Disposable {
       return;
     }
     const known = await this.session.complete(new URLSearchParams(uri.query));
+    log.appendLine(`sign-in link: ${known ? 'for this window' : 'not for this window'}`);
     if (!known) void vscode.window.showWarningMessage('That EDGEmods sign-in link is old or from another window. Start the sign-in again from this window.');
   }
 
@@ -159,10 +160,17 @@ class Accounts implements vscode.AuthenticationProvider, vscode.Disposable {
     try {
       me = await this.api.me();
     } catch (err) {
+      log.appendLine(`account: ${message(err)}`);
       void vscode.window.showErrorMessage(`EDGEmods: ${message(err)}`);
       return undefined;
     }
-    if (!me.signedIn) return undefined;
+    if (!me.signedIn) {
+      // Only after a sign-in that just worked, or a token the site no longer takes: say so rather than nothing.
+      log.appendLine('account: the site did not take the sign-in');
+      if (await this.session.signedIn()) void vscode.window.showErrorMessage('EDGEmods: the site did not take your sign-in. Sign out and sign in again.');
+      return undefined;
+    }
+    log.appendLine(`account: signed in with ${me.via ?? 'an account'}${me.username ? ` as ${me.username}` : ', no username yet'}`);
     const account: Account = { id: me.id ?? me.name ?? 'you', username: me.username ?? undefined, name: me.name ?? 'You', via: me.via };
     await this.session.setAccount(account);
     this.suggestion = me.suggestion;
