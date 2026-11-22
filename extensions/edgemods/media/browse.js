@@ -16,7 +16,8 @@
     ['updated', 'Updated'],
     ['new', 'New'],
     ['downloads', 'Most downloaded'],
-    ['liked', 'Liked'],
+    ['likes', 'Most liked'],
+    ['liked', 'Your likes'],
   ];
   // The site's words for the types (packages/server/src/words.ts).
   const TYPES = {

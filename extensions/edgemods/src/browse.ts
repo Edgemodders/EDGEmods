@@ -1,4 +1,4 @@
-// The EDGEmods side panel (the activity bar icon): search, and the lists Updated, New, Most downloaded and Liked.
+// The EDGEmods side panel (the activity bar icon): search, and the lists Updated, New, Most downloaded, Most liked and Your likes.
 // Its script (media/browse.js) draws the mods from data with textContent only; every call to the site is made here.
 
 import * as vscode from 'vscode';

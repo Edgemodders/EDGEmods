@@ -1,7 +1,7 @@
 // The home page, the browse page and the mod card they share. Browse works without JavaScript: the filters are a
 // form that sends GET /mods, so every search is an address that can be shared; site.js only submits it on change.
 
-import type { Card, Catalog, Query, SearchResult, Sort } from '../catalog.js';
+import { SORTS, type Card, type Catalog, type Query, type SearchResult, type Sort } from '../catalog.js';
 import { html, pathOf, type Html } from '../html.js';
 import { ago, bytes, date, daysSince, plural, typeLabel } from '../words.js';
 import { ICON, likeButton, page, type PageContext } from './layout.js';
@@ -93,7 +93,7 @@ export function browsePage(ctx: PageContext, query: Query, result: SearchResult)
     return html`<fieldset class="facet"><legend>${title}</legend>${list.map((f) => html`<label><input type="checkbox" name="${key}" value="${f.value}"${
       query[key].includes(f.value) ? html` checked` : ''}>${label(f.value, f.label)}<small>${f.count}</small></label>`)}</fieldset>`;
   };
-  const sorts = (query.q ? (['relevance', 'updated', 'new', 'likes', 'name'] as Sort[]) : (['updated', 'new', 'likes', 'name'] as Sort[]));
+  const sorts = SORTS.filter((s) => s !== 'relevance' || query.q);
   const title = query.q ? `“${query.q}”` : query.type.length === 1 ? `${typeLabel(query.type[0])} mods` : 'Mods';
   return page(ctx, { title, nav: query.sort === 'new' && !query.q ? 'new' : 'browse', noindex: chips.length > 1 }, html`<main class="wrap">
     <form class="browse" action="/mods" method="get" id="browse">

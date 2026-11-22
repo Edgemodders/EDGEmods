@@ -42,6 +42,10 @@ describe('downloading', () => {
     assert.equal(card.id, 'street-cred');
     assert.equal(card.downloads, 2);
     assert.match(await t.text('/mods/street-cred'), /<dt>Downloads<\/dt><dd>2<\/dd>/);
+    const browse = await t.text('/mods?sort=downloads');
+    assert.match(browse, /<option value="downloads" selected>Most downloaded<\/option>/);
+    assert.match(browse, /<option value="likes">Most liked<\/option>/);
+    assert.doesNotMatch(browse, /value="relevance"/);
   });
 
   test('only files of releases that show', async () => {
