@@ -145,6 +145,12 @@ describe('moderation, adult opt-in and check results', () => {
       const source = await t.get('/mods/street-cred/source/docs/a%20b.md');
       assert.equal(source.status, 302);
       assert.equal(source.headers.get('location'), 'https://github.com/bob/street-cred/blob/v1.0.0/docs/a%20b.md');
+      // Two ways to get a mod: a mod manager link (docs/links.md) and a manual download.
+      const page = await t.text('/mods/street-cred');
+      assert.match(page, /<a class="btn go" href="edgemods:\/\/install\/street-cred\/1\.0\.0"[^>]*>.*Mod manager<\/a>/s);
+      assert.match(page, /<a class="btn" href="\/download\/street-cred\/1\.0\.0\/street-cred-1\.0\.0\.zip">.*Manual download<\/a>/s, 'one file: straight to it');
+      assert.match(await t.text('/mods/street-cred?tab=versions'), /href="edgemods:\/\/install\/street-cred\/1\.0\.0">Mod manager<\/a>/);
+      assert.ok(!page.includes('vscode://'), 'no VS Code-only link');
     } finally {
       await t.close();
     }

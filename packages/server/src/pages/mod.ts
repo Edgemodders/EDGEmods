@@ -42,8 +42,9 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
       </div>
       <aside class="side">
         <div class="panel"><div class="actions">${who
-          ? html`<a class="btn go" href="vscode://edgemodders.edgemods/install?mod=${encodeURIComponent(m.id)}&amp;version=${encodeURIComponent(shown.version)}">${ICON.vscode} Install in VS Code</a>
-                 <a class="btn" href="?tab=files#tabs">${ICON.down} Download files</a>
+          ? html`<a class="btn go" href="${managerLink(m.id, shown.version)}" title="Opens your mod manager: EDGEdeck, or another that supports EDGEmods links">${ICON.box} Mod manager</a>
+                 <a class="btn" href="${manualHref(m, shown)}">${ICON.down} Manual download</a>
+                 <p class="gate">Mod manager installs it with its requirements in EDGEdeck, or another mod manager that supports EDGEmods links. Nothing opens? Use Manual download.</p>
                  ${likeButton(ctx, m.id, m.likes, ' wide')}`
           : html`<a class="btn go" href="${signInHref(ctx)}">${ICON.lock} Sign in to download</a>
                  ${likeButton(ctx, m.id, m.likes, ' wide')}
@@ -67,6 +68,20 @@ export function modPage(ctx: PageContext, catalog: Catalog, m: ModView, tab: Mod
     ${panel('versions', versionsPanel(ctx, m, names))}
     ${panel('needs', needsPanel(catalog, m, names))}
   </main>`);
+}
+
+/**
+ * A mod manager link (docs/links.md): `edgemods://install/<mod>/<version>`. Whatever mod manager registered for
+ * edgemods: links gets it (EDGEdeck, with the EDGEmods extension) and asks before installing anything.
+ */
+export function managerLink(id: string, version: string): string {
+  return `edgemods://install/${encodeURIComponent(id)}/${encodeURIComponent(version)}`;
+}
+
+/** Manual download: the file itself when the release has just one, otherwise the Files tab to choose. */
+function manualHref(m: ModView, r: ReleaseView): string {
+  const only = r.files.length === 1 ? r.files[0] : undefined;
+  return only ? `/download/${encodeURIComponent(m.id)}/${encodeURIComponent(r.version)}/${encodeURIComponent(only.name)}` : '?tab=files#tabs';
 }
 
 function contentsPanel(r: ReleaseView): Html {
@@ -137,7 +152,7 @@ function versionsPanel(ctx: PageContext, m: ModView, names: Map<string, string>)
         <p class="label">What changed</p>${r.notesHtml ? html`<div class="readme notes">${raw(r.notesHtml)}</div>` : html`<p class="dim">The author wrote no notes for this version.</p>`}
         <p class="label">Files</p><div class="vfiles">${r.files.map((f) => fileRow(ctx, m, r, f, names))}</div>
         <p class="label">Requirements</p><p>${r.requirements.length ? r.requirements.map((q, i) => html`${i ? ' · ' : ''}${requirementWords(q, names)}`) : 'None'}</p>
-        ${ctx.viewer ? html`<a class="btn sm" href="vscode://edgemodders.edgemods/install?mod=${encodeURIComponent(m.id)}&amp;version=${encodeURIComponent(r.version)}">${r.version === m.shown.version ? 'Install' : 'Install this version'}</a>` : html`<a class="btn sm" href="${signInHref(ctx)}">Sign in to download or install</a>`}
+        ${ctx.viewer ? html`<a class="btn sm" href="${managerLink(m.id, r.version)}">${r.version === m.shown.version ? 'Mod manager' : 'This version in a mod manager'}</a>` : html`<a class="btn sm" href="${signInHref(ctx)}">Sign in to download or install</a>`}
       </div></details>`)}</div>`;
 }
 

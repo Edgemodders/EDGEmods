@@ -35,6 +35,8 @@ nav:
     url: /research.html
   - title: Dev setup
     url: /dev-setup.html
+  - title: Links
+    url: /links.html
   - title: Auth0
     url: /auth0-setup.html
   - title: Changelog
