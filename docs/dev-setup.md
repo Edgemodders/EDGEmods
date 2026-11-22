@@ -94,4 +94,4 @@ The developer docs at https://edgemodders.github.io/EDGEmods/ are built by `.git
 | `docs/assets/brand/social.png` | Upload by hand in Settings > General > Social preview |
 | `docs/assets/brand/icon.png` | Site icon, and the extension's Marketplace icon later |
 | `docs/assets/brand/badges/*.svg` | README badges. Edit the list in `tools/brand/badges.py` |
-| `tools/brand/activity.svg` | The activity bar icon. Drawn by hand, not rendered: 24 × 24, stroke 2, `currentColor`, one jigsaw puzzle piece (since 2026-11-22: the earlier brackets around a grid of tiles looked too much like the other EDGE tools' icons). The extension's build copies it to `extensions/edgemods/images/activity.svg` |
+| `tools/brand/activity.svg` | The activity bar icon. Drawn by hand, not rendered: 24 × 24, stroke 2, `currentColor`, the family's HUD brackets around one jigsaw puzzle piece (since 2026-11-22; the grid of tiles inside looked too much like the other EDGE tools' icons). The extension's build copies it to `extensions/edgemods/images/activity.svg` |
