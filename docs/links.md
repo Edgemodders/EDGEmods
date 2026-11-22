@@ -2,7 +2,7 @@
 
 A mod's page on EDGEmods has two buttons: **Mod manager** and **Manual download**. Manual download gives you the file itself. Mod manager opens an `edgemods:` link, and whichever mod manager on your computer has registered for those links installs the mod, with everything it needs. This page is the link's format, for anyone writing a mod manager that supports it.
 
-**Status:** decided with the owner on 2026-11-21. The website makes these links since that day. No mod manager handles them yet: EDGEdeck's support is a [request](#in-edge) on its repository.
+**Status:** decided with the owner on 2026-11-21. The website makes these links since that day. No mod manager handles them yet: EDGEdeck's support is requested in [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16).
 
 ## Why its own kind of link
 
@@ -52,6 +52,6 @@ Only one program can hold it at a time. A mod manager that takes it over should 
 
 | Tool | Its part |
 |---|---|
-| EDGEdeck | Registers for `edgemods:` links next to `nxm:` ones, with the same forwarder into VS Code, and passes each link to the EDGEmods extension. Owns installing: installs the downloaded mods into the loadout, all or nothing. Requested on its repository |
+| EDGEdeck | Registers for `edgemods:` links next to `nxm:` ones, with the same forwarder into VS Code, and passes each link to the EDGEmods extension. Owns installing: installs the downloaded mods into the loadout, all or nothing. Requested in [EDGEdeck#16](https://github.com/Edgemodders/EDGEdeck/issues/16) |
 | The EDGEmods extension (R4) | Takes the link from EDGEdeck: asks, signs in, reads the plan, downloads and checks the files, then hands them to EDGEdeck. Without the extension, EDGEdeck offers to install it |
 | The website | Makes the links: the Mod manager button on a mod's page, and on each release in the Versions tab |
