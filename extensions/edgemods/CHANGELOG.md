@@ -13,4 +13,5 @@ What changed in each release of the EDGEmods extension for VS Code. The Marketpl
 - A mod's page in an editor tab, in the website's look: About, Files, Versions and Requirements, likes, reporting a mod, and Manual download to a folder you pick, each file checked against the one EDGEmods checked.
 - EDGEmods: Find a mod, from the Command Palette: search as you type, and open the mod's tab.
 - After signing in, your browser shows an EDGEmods page that says to go back to VS Code, and VS Code says who you are signed in as.
+- Assistants can find mods too: Claude Code and the agents in VS Code get `mods_search`, `mods_info` (a mod in full) and `mods_plan` (what installing it brings, requirements first). Agents in VS Code see them by themselves; **EDGEmods: Connect an assistant (MCP)** gives Claude Code the line to add them. They need no sign-in.
 - EDGEmods links from the website's Mod manager button (through EDGEdeck 0.33.0 or newer) open the mod's tab in VS Code; installing through EDGEdeck comes next, and until then you can save the files.

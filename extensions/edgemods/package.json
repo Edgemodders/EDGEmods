@@ -135,6 +135,17 @@
         "command": "edgemods.openMod",
         "title": "Open a mod",
         "category": "EDGEmods"
+      },
+      {
+        "command": "edgemods.mcpSetup",
+        "title": "Connect an assistant (MCP)",
+        "category": "EDGEmods"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "edgemods.mcp",
+        "label": "EDGEmods"
       }
     ],
     "configuration": {
@@ -157,7 +168,9 @@
     "package": "vsce package --no-dependencies --out dist/"
   },
   "dependencies": {
-    "@edgemodders/edgemods-format": "*"
+    "@edgemodders/edgemods-format": "*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -6,5 +6,6 @@ export {
 } from './api.js';
 export { parseLink, type InstallLink } from './links.js';
 export { pageLink, type PageLink } from './pagelinks.js';
+export { htmlText, installPlan, INSTRUCTIONS, modInfo, searchMods, type ToolResult } from './tools.js';
 export { EDITOR_SCHEMES, Session, SIGN_IN_WAIT_MS, type Account, type SecretStore } from './session.js';
 export { USERNAME_PATTERN, USERNAME_RULE } from './usernames.js';

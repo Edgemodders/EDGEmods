@@ -52,6 +52,8 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
       browse.refresh();
       panels.refreshAll();
     }),
+    ...registerMcp(context, () => accounts.api.site),
+    vscode.commands.registerCommand('edgemods.mcpSetup', () => mcpSetup(context, accounts.api.site)),
     log,
     accounts,
     vscode.authentication.registerAuthenticationProvider(PROVIDER, 'EDGEmods', accounts, { supportsMultipleAccounts: false }),
@@ -77,6 +79,63 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
 }
 
 export function deactivate(): void {}
+
+// ---- the MCP server (dist/mcp.js): finding mods for assistants ----
+
+function mcpArgs(context: vscode.ExtensionContext, site: string): string[] {
+  return [vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp.js').fsPath, '--site', site];
+}
+
+/**
+ * Registers the server with VS Code's own MCP support (1.101 and newer), so the agents VS Code hosts see the EDGEmods
+ * tools with no setup; VS Code's own binary runs it as Node. Older VS Code: nothing. The same way as EDGEdeck.
+ */
+function registerMcp(context: vscode.ExtensionContext, site: () => string): vscode.Disposable[] {
+  const lm = (vscode as unknown as { lm?: { registerMcpServerDefinitionProvider?: (id: string, p: unknown) => vscode.Disposable } }).lm;
+  const Def = (vscode as unknown as { McpStdioServerDefinition?: new (label: string, command: string, args: string[], env: Record<string, string>, version?: string) => unknown }).McpStdioServerDefinition;
+  if (!lm?.registerMcpServerDefinitionProvider || !Def) return [];
+  const changed = new vscode.EventEmitter<void>();
+  const version = String((context.extension.packageJSON as { version?: string }).version ?? '0.0.0');
+  return [
+    changed,
+    lm.registerMcpServerDefinitionProvider('edgemods.mcp', {
+      onDidChangeMcpServerDefinitions: changed.event,
+      provideMcpServerDefinitions: () => [new Def('EDGEmods', process.execPath, mcpArgs(context, site()), { ELECTRON_RUN_AS_NODE: '1' }, version)],
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('edgemods.site')) changed.fire();
+    }),
+  ];
+}
+
+/** "EDGEmods: Connect an assistant (MCP)": the one line Claude Code needs, or a JSON entry for other clients. */
+async function mcpSetup(context: vscode.ExtensionContext, site: string): Promise<void> {
+  const args = mcpArgs(context, site);
+  const claude = `claude mcp add edgemods -- node ${args.map((a) => `"${a}"`).join(' ')}`;
+  const json = JSON.stringify({ edgemods: { command: 'node', args } }, null, 2);
+  const inVsCode = (vscode as unknown as { lm?: { registerMcpServerDefinitionProvider?: unknown } }).lm?.registerMcpServerDefinitionProvider
+    ? 'Agents inside this VS Code already see the EDGEmods tools.'
+    : 'This VS Code is older than 1.101, so agents inside it do not see MCP servers.';
+  const picked = await vscode.window.showQuickPick(
+    [
+      { label: '$(terminal) Copy the Claude Code command', description: 'claude mcp add edgemods ...', detail: 'Paste it in a terminal once. Claude Code then has mods_search, mods_info and mods_plan.', action: 'claude' },
+      { label: '$(json) Copy a JSON entry', description: 'for other MCP clients', detail: 'The server entry for a client\'s MCP settings file.', action: 'json' },
+      { label: '$(file) Reveal the server file', description: 'dist/mcp.js', detail: 'Any MCP client can run it with Node: node mcp.js --site <EDGEmods site>.', action: 'reveal' },
+    ],
+    { title: 'EDGEmods: Connect an assistant (MCP)', placeHolder: inVsCode },
+  );
+  if (!picked) return;
+  if (picked.action === 'claude') {
+    await vscode.env.clipboard.writeText(claude);
+    void vscode.window.showInformationMessage('Copied. Paste it in a terminal, then ask Claude Code to find a mod.');
+  } else if (picked.action === 'json') {
+    await vscode.env.clipboard.writeText(json);
+    void vscode.window.showInformationMessage('Copied the JSON entry for the server.');
+  } else {
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(args[0]));
+  }
+  log.appendLine(`MCP: ${claude}`);
+}
 
 /** EDGEdeck hands over an edgemods: link (the website's Mod manager button): the mod's tab, then the install. */
 async function openLink(panels: ModPanels, downloads: Downloads, url: string): Promise<void> {
