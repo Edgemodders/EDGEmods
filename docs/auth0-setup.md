@@ -16,6 +16,7 @@ It takes about half an hour. Nothing on this page costs money.
 | Auth0 | The API "EDGEmods API" | The VS Code extension's sign-in (R4); quick to add now |
 | Auth0 | The application "EDGEmods server" | Lets the server change a person's own profile: their name, email, linked sign-ins, deleting their account |
 | Your PC | A `.env` file | The values the server reads when it starts |
+| Auth0 | The application "EDGEmods for VS Code" (step 9, added at R4) | The VS Code extension's sign-in |
 
 ## 1. The tenant
 
@@ -164,6 +165,65 @@ EDGEMODS_ADMINS=the email you sign in with
 
 Say it is done, and give the tenant domain if it is not `edgemods-dev.us.auth0.com`. Claude checks it by starting the server and signing in on http://localhost:8800 with each of the three methods: you will be asked to sign in yourself, since only you can.
 
+## 9. The VS Code extension's application (R4)
+
+Added 2026-11-22, checked against Auth0's docs that day. The extension signs in the way a desktop app should: it opens your browser on the same Auth0 page as the website, and when you have signed in, Auth0 hands the answer back to VS Code through VS Code's own link handler (a `vscode://` link, the same kind EDGEdeck's links use). No local port is opened. The extension keeps a refresh token in VS Code's secret storage, so you stay signed in, and every time it is used Auth0 swaps it for a new one (rotation), so a stolen old one is worthless.
+
+It is a **Native** application: it has no client secret, because anything shipped inside an extension can be read by anyone. PKCE takes the secret's place.
+
+### The application
+
+1. **Applications** › **Applications** › **Create Application**.
+2. **Name:** `EDGEmods for VS Code`. **Type:** Native. **Create**. Skip the quick start.
+3. **Settings** tab, **Application URIs**:
+
+   | Field | Value |
+   |---|---|
+   | Allowed Callback URLs | the six lines below, separated by commas |
+   | Allowed Logout URLs | empty |
+   | Allowed Web Origins | empty |
+   | Allowed Origins (CORS) | empty |
+
+   ```text
+   vscode://edgemodders.edgemods/auth, vscode-insiders://edgemodders.edgemods/auth, edgekit://edgemodders.edgemods/auth, vscodium://edgemodders.edgemods/auth, cursor://edgemodders.edgemods/auth, windsurf://edgemodders.edgemods/auth
+   ```
+
+   One per editor: VS Code, VS Code Insiders, EDGEkit, VSCodium, Cursor and Windsurf each open their own kind of link. The extension asks the editor it runs in which one is its own.
+
+4. Same tab, **Refresh Token Rotation**: switch on **Allow Refresh Token Rotation**. **Rotation Overlap Period:** `0`.
+5. Same tab, **Refresh Token Expiration**:
+
+   | Field | Value |
+   |---|---|
+   | Set Idle Refresh Token Lifetime | on, `2592000` (30 days: not used for a month, you sign in again, as on the website) |
+   | Set Maximum Refresh Token Lifetime | on, `31557600` (a year: at the latest, you sign in again once a year) |
+
+6. Same tab, **Advanced Settings** › **Grant Types**: keep **Authorization Code** and **Refresh Token**. Untick anything else (Implicit, Device Code, Password).
+7. **Credentials** tab: **Authentication Method** None (a Native application's default).
+8. **Connections** tab: switch on `Username-Password-Authentication`, `google-oauth2` and `github`, as for the website.
+9. **Save**. From the **Settings** tab, copy the **Client ID**. It is not secret.
+
+### The API's side
+
+The extension asks for an access token for the EDGEmods API (step 4). Three settings on the API make that safe and quiet:
+
+1. **Applications** › **APIs** › `EDGEmods API` › **Settings**.
+2. **Access Settings** › **Allow Skipping User Consent**: on. EDGEmods' own applications then do not show an "EDGEmods wants to access your account" page.
+3. **Application Access Policy** › **User-Delegated Access**: **Per-app authorization**. Only applications you name can then get a token for the API. The website never asks for one, so it is not affected. **Save**.
+4. **Application Access** tab: find `EDGEmods for VS Code`, **Edit**, **Grant Access** under **User-Delegated Access**. The API has no permissions to tick yet. **Save**.
+
+Auth0 may still show a short "confirm you are signing in to EDGEmods for VS Code" page after you sign in. That is on purpose: a `vscode://` link can be answered by any program on the PC that claims it, so Auth0 asks you to confirm it was you who started the sign-in.
+
+### The settings file
+
+Add one line to `.env`:
+
+```ini
+EDGEMODS_AUTH0_EXTENSION_CLIENT_ID=the VS Code application's client id
+```
+
+The server then accepts this application's access tokens on its API and downloads, and tells the extension which tenant and client id to use, so the extension needs only the site's address (`http://localhost:8800` while testing). Then tell Claude it is done.
+
 ## Later: the live site (R3h)
 
 The live site gets its own tenant, so test accounts and test settings never mix with players' accounts. When R3h comes:
@@ -176,7 +236,5 @@ The live site gets its own tenant, so test accounts and test settings never mix 
 | GitHub | A second OAuth App, `EDGEmods`, with the callback `https://login.edgemods.ai/login/callback` |
 | Email | Auth0's built-in email is for testing only: 10 emails a minute, from `no-reply@auth0user.net`. The live site sends through Amazon SES (on the same AWS account) from an `edgemods.ai` address |
 | Website application | Callback `https://edgemods.ai/auth/callback`, logout `https://edgemods.ai/` |
-| API and server application | As in steps 4 and 5 |
-| Settings | The same names as step 7, in `/etc/edgemods.env` on the server |
-
-The VS Code extension's own application (a Native application with a loopback callback) is added at R4, when the extension's sign-in is built.
+| API, server application and VS Code application | As in steps 4, 5 and 9 |
+| Settings | The same names as steps 7 and 9, in `/etc/edgemods.env` on the server |
