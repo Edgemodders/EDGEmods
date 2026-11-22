@@ -1,6 +1,9 @@
 // The EDGEmods website's API (/api/v1), for the extension and the MCP server. Calls carry the access token when
 // someone is signed in; a token the site refuses is renewed once and the call tried again.
 
+import { createHash } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { rename, rm } from 'node:fs/promises';
 import type { AuthInfo, Fetch } from './auth.js';
 
 /** GET /api/v1/me */
@@ -18,6 +21,87 @@ export interface Me {
   admin?: boolean;
   adult?: boolean;
   likes?: string[];
+}
+
+/** A mod in a list (GET /api/v1/mods, /api/v1/me/likes). */
+export interface Card {
+  id: string;
+  name: string;
+  summary: string;
+  author: string;
+  type: string;
+  tags: string[];
+  version: string;
+  size: number;
+  firstPublished?: string;
+  lastUpdated?: string;
+  adult: boolean;
+  runsCode: boolean;
+  /** The card picture's path in the mod's repository; the site serves it under /mods/<id>/images/. */
+  card: string;
+  likes: number;
+  downloads: number;
+}
+
+export const SORTS = ['relevance', 'updated', 'new', 'downloads', 'likes', 'name'] as const;
+export type Sort = (typeof SORTS)[number];
+
+export interface SearchQuery {
+  q?: string;
+  sort?: Sort;
+  page?: number;
+  type?: string[];
+  tag?: string[];
+}
+
+export interface SearchResult {
+  total: number;
+  page: number;
+  pages: number;
+  cards: Card[];
+}
+
+export const MOD_TABS = ['about', 'files', 'versions', 'needs'] as const;
+export type ModTab = (typeof MOD_TABS)[number];
+
+/** A mod's page for an editor tab (GET /api/v1/mods/<id>/view): the website's own content, without its frame. */
+export interface ModPage {
+  id: string;
+  name: string;
+  version: string;
+  tab: ModTab;
+  html: string;
+}
+
+/** A release as GET /api/v1/mods/<id> gives it: what a download is checked against. */
+export interface ModRelease {
+  tag?: string;
+  version: string;
+  files: { name: string; title?: string; role: string; size: number }[];
+  check?: { ok: boolean; downloads: { name: string; size: number; sha256: string }[] };
+}
+
+export interface ModInfo {
+  /** owner/name on GitHub: for people who are signed in only. */
+  repo?: string;
+  id: string;
+  name: string;
+  shown: ModRelease;
+  releases: ModRelease[];
+}
+
+export const REPORT_REASONS = {
+  broken: 'Does not work',
+  malware: 'Malware or harmful',
+  stolen: 'Someone else\'s work',
+  adult: 'Adult content not marked 18+',
+  other: 'Something else',
+} as const;
+export type ReportReason = keyof typeof REPORT_REASONS;
+
+/** The path of a mod picture on the site. */
+export function imagePath(mod: string, path: string): string {
+  return `/mods/${encodeURIComponent(mod)}/images/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 /** The site answered with an error. `code` is the site's own word for it (`username`, `blocked`, `taken`, …). */
@@ -39,6 +123,7 @@ const MESSAGES: Record<string, string> = {
   auth0: 'EDGEmods could not ask Auth0 who you are just now. Try again in a moment.',
   'not-found': 'EDGEmods does not have that.',
   'sign-in': 'Sign in to EDGEmods first.',
+  github: 'GitHub, where the file lives, did not answer just now. Try again in a moment.',
 };
 
 /** A site address the extension may use: https, or http on this PC only (so a token never crosses a network in clear). */
@@ -68,6 +153,117 @@ export class Api {
   /** Claims a username. Throws an ApiError with the site's words when it cannot be had. */
   setUsername(username: string): Promise<{ username: string }> {
     return this.call('POST', '/api/v1/me/username', { username });
+  }
+
+  search(query: SearchQuery = {}): Promise<SearchResult> {
+    const p = new URLSearchParams();
+    if (query.q?.trim()) p.set('q', query.q.trim());
+    if (query.sort) p.set('sort', query.sort);
+    if (query.page && query.page > 1) p.set('page', String(query.page));
+    for (const t of query.type ?? []) p.append('type', t);
+    for (const t of query.tag ?? []) p.append('tag', t);
+    const text = p.toString();
+    return this.call('GET', `/api/v1/mods${text ? `?${text}` : ''}`);
+  }
+
+  /** The mods the person likes, most recently liked first. */
+  likes(): Promise<{ cards: Card[] }> {
+    return this.call('GET', '/api/v1/me/likes');
+  }
+
+  mod(id: string): Promise<ModInfo> {
+    return this.call('GET', `/api/v1/mods/${encodeURIComponent(id)}`);
+  }
+
+  modPage(id: string, tab?: ModTab, reported?: 'sent' | 'already'): Promise<ModPage> {
+    const p = new URLSearchParams();
+    if (tab && tab !== 'about') p.set('tab', tab);
+    if (reported) p.set('reported', reported);
+    const text = p.toString();
+    return this.call('GET', `/api/v1/mods/${encodeURIComponent(id)}/view${text ? `?${text}` : ''}`);
+  }
+
+  like(id: string, like: boolean): Promise<{ liked: boolean; likes: number }> {
+    return this.call('POST', `/api/v1/mods/${encodeURIComponent(id)}/like`, { like });
+  }
+
+  /** True when the report went to the admins; false when this person already has one open for the mod. */
+  async report(id: string, reason: ReportReason, note: string): Promise<boolean> {
+    return (await this.call<{ sent: boolean }>('POST', `/api/v1/mods/${encodeURIComponent(id)}/report`, { reason, note })).sent;
+  }
+
+  /** A file's download address on the site, which counts it and serves it (a sign-in is needed). */
+  downloadPath(mod: string, version: string, file: string): string {
+    return `/download/${encodeURIComponent(mod)}/${encodeURIComponent(version)}/${encodeURIComponent(file)}`;
+  }
+
+  /**
+   * Downloads one of the site's /download/ paths to `dest`, written as `<dest>.part` first and renamed when whole.
+   * With `sha256`, a file that does not match is deleted and the download fails. The site answers with a redirect to
+   * GitHub; the token goes to the site only, never along a redirect.
+   */
+  async download(path: string, dest: string, opts: { sha256?: string; onProgress?: (done: number, total?: number) => void; signal?: AbortSignal } = {}): Promise<{ size: number; sha256: string }> {
+    const get = async (url: string, token?: string): Promise<Response> => {
+      try {
+        return await this.fetchFn(url, { headers: token ? { authorization: `Bearer ${token}` } : {}, redirect: 'manual', signal: opts.signal });
+      } catch {
+        if (opts.signal?.aborted) throw new ApiError(0, 'cancelled', 'The download was cancelled.');
+        throw new ApiError(0, 'offline', `${new URL(url).host} did not answer. Check your connection.`);
+      }
+    };
+    const first = `${this.site}${path}`;
+    const token = await this.token?.(false);
+    if (!token) throw new ApiError(401, 'sign-in', MESSAGES['sign-in']);
+    let res = await get(first, token);
+    if (res.status === 401) {
+      const again = await this.token?.(true);
+      if (again) res = await get(first, again);
+    }
+    // A few hops at most (the site, then GitHub's own redirect to its file store), never with the token.
+    let at = first;
+    for (let hops = 0; res.status >= 300 && res.status < 400 && hops < 5; hops++) {
+      const location = res.headers.get('location');
+      if (!location) break;
+      const next = new URL(location, at);
+      if (next.protocol !== 'https:') throw new ApiError(0, 'redirect', 'The download pointed somewhere that is not https, so it was stopped.');
+      await res.body?.cancel();
+      at = next.href;
+      res = await get(at);
+    }
+    if (!res.ok || !res.body) {
+      const data = (await res.json().catch(() => undefined)) as Record<string, unknown> | undefined;
+      const code = typeof data?.error === 'string' ? data.error : `http-${res.status}`;
+      throw new ApiError(res.status, code, MESSAGES[code] ?? `The download answered HTTP ${res.status}.`);
+    }
+    const total = Number(res.headers.get('content-length')) || undefined;
+    const part = `${dest}.part`;
+    const hash = createHash('sha256');
+    const out = createWriteStream(part);
+    let size = 0;
+    try {
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        hash.update(value);
+        size += value.byteLength;
+        if (!out.write(value)) await new Promise<void>((resolve) => out.once('drain', () => resolve()));
+        opts.onProgress?.(size, total);
+      }
+      await new Promise<void>((resolve, reject) => out.end(() => resolve()).once('error', reject));
+    } catch (err) {
+      out.destroy();
+      await rm(part, { force: true });
+      if (opts.signal?.aborted) throw new ApiError(0, 'cancelled', 'The download was cancelled.');
+      throw new ApiError(0, 'offline', `The download stopped: ${err instanceof Error ? err.message : err}`);
+    }
+    const sha256 = hash.digest('hex');
+    if (opts.sha256 && opts.sha256.toLowerCase() !== sha256) {
+      await rm(part, { force: true });
+      throw new ApiError(0, 'checksum', 'The file that came down is not the one EDGEmods checked, so it was deleted. Try again; if it happens again, report the mod.');
+    }
+    await rename(part, dest);
+    return { size, sha256 };
   }
 
   /** A site address for people, such as a mod's page. */

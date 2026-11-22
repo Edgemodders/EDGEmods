@@ -35,6 +35,12 @@ interface Pending {
   settle: (err?: Error) => void;
 }
 
+/**
+ * The editors whose link handler a sign-in may go back to: their link schemes, which the site's landing page
+ * (/auth/vscode) accepts at the start of the state. The same list as the server's EDITOR_SCHEMES.
+ */
+export const EDITOR_SCHEMES = ['vscode', 'vscode-insiders', 'vscodium', 'cursor', 'windsurf', 'edgekit'];
+
 /** An access token this close to running out is renewed first. */
 const EARLY_MS = 60_000;
 /** How long a sign-in in the browser may take. */
@@ -72,13 +78,14 @@ export class Session {
 
   /**
    * Starts a sign-in: the address to open in the browser, and a promise that settles when the editor gets the link
-   * back (see complete) or the sign-in is cancelled. Starting another cancels this one.
+   * back (see complete) or the sign-in is cancelled. Starting another cancels this one. `editor` is the editor's link
+   * scheme (vscode, cursor, …): it starts the state, so the site's landing page knows which editor to hand back to.
    */
-  async begin(redirectUri: string, method?: Method): Promise<{ url: string; done: Promise<void> }> {
+  async begin(redirectUri: string, method?: Method, editor?: string): Promise<{ url: string; done: Promise<void> }> {
     const info = await this.info();
     this.cancel();
     const { verifier, challenge } = pkce();
-    const state = randomState();
+    const state = editor ? `${editor}.${randomState()}` : randomState();
     let settle!: (err?: Error) => void;
     const done = new Promise<void>((resolve, reject) => {
       settle = (err) => (err ? reject(err) : resolve());

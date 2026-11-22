@@ -42,9 +42,53 @@
   "activationEvents": [
     "onStartupFinished",
     "onUri",
-    "onAuthenticationRequest:edgemods"
+    "onWebviewPanel:edgemods.mod"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "edgemods",
+          "title": "EDGEmods",
+          "icon": "images/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "edgemods": [
+        {
+          "type": "webview",
+          "id": "edgemods.browse",
+          "name": "Mods",
+          "icon": "images/activity.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "edgemods.findMod",
+          "when": "view == edgemods.browse",
+          "group": "navigation@1"
+        },
+        {
+          "command": "edgemods.refresh",
+          "when": "view == edgemods.browse",
+          "group": "navigation@2"
+        },
+        {
+          "command": "edgemods.account",
+          "when": "view == edgemods.browse",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "edgemods.openMod",
+          "when": "false"
+        }
+      ]
+    },
     "authentication": [
       {
         "id": "edgemods",
@@ -74,6 +118,23 @@
         "title": "Account",
         "category": "EDGEmods",
         "icon": "$(account)"
+      },
+      {
+        "command": "edgemods.findMod",
+        "title": "Find a mod",
+        "category": "EDGEmods",
+        "icon": "$(search)"
+      },
+      {
+        "command": "edgemods.refresh",
+        "title": "Refresh",
+        "category": "EDGEmods",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "edgemods.openMod",
+        "title": "Open a mod",
+        "category": "EDGEmods"
       }
     ],
     "configuration": {

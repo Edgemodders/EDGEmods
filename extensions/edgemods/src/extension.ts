@@ -1,14 +1,16 @@
 // The EDGEmods extension (docs/design.md, "The EDGEmods extension"). R4a: signing in, the account in the status bar
-// and VS Code's Accounts menu, choosing a username, and openLink for EDGEdeck's edgemods: links. Browsing (R4b) and
-// installing (R4c) come next.
+// and VS Code's Accounts menu, choosing a username, and openLink for EDGEdeck's edgemods: links. R4b: the side panel
+// (search and lists), a mod's page in an editor tab, likes, reports and manual downloads. Installing is R4c.
 //
 // Nothing here calls the network until the person asks for something that needs it: the status bar shows the
 // account EDGEmods last named, from secret storage.
 
 import * as vscode from 'vscode';
-import { Api, ApiError, parseLink, Session, siteOf, SignedOutError, SIGN_IN_WAIT_MS, USERNAME_PATTERN, USERNAME_RULE, type Account, type Me, type Method } from './core/index.js';
+import { BrowseView } from './browse.js';
+import { Api, ApiError, EDITOR_SCHEMES, parseLink, Session, siteOf, SignedOutError, SIGN_IN_WAIT_MS, USERNAME_PATTERN, USERNAME_RULE, type Account, type Me, type Method } from './core/index.js';
+import { Downloads } from './downloads.js';
+import { ModPanels } from './modPanel.js';
 
-const EXTENSION_ID = 'edgemodders.edgemods';
 const PROVIDER = 'edgemods';
 const DEFAULT_SITE = 'https://edgemods.ai';
 
@@ -23,7 +25,33 @@ let log: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext): EdgemodsApi {
   log = vscode.window.createOutputChannel('EDGEmods');
   const accounts = new Accounts(context);
+  const host = {
+    api: () => accounts.api,
+    signedIn: () => accounts.session.signedIn(),
+    signIn: () => accounts.signIn(),
+    log: (line: string) => log.appendLine(line),
+  };
+  const downloads = new Downloads(context, host);
+  const panels: ModPanels = new ModPanels(context.extensionUri, {
+    ...host,
+    install: (url) => install(downloads, url),
+    download: (mod, version, file) => downloads.save(mod, version, file ? [file] : undefined),
+    browse: (f) => browse.show(f),
+  });
+  const browse = new BrowseView(context.extensionUri, { ...host, openMod: (id) => panels.open(id) });
   context.subscriptions.push(
+    accounts.onDidChangeAccount(() => {
+      panels.refreshAll();
+      browse.refresh();
+    }),
+    vscode.window.registerWebviewViewProvider(BrowseView.id, browse),
+    vscode.window.registerWebviewPanelSerializer(ModPanels.viewType, panels),
+    vscode.commands.registerCommand('edgemods.findMod', () => findMod(accounts, panels)),
+    vscode.commands.registerCommand('edgemods.openMod', (id: unknown) => (typeof id === 'string' ? panels.open(id) : findMod(accounts, panels))),
+    vscode.commands.registerCommand('edgemods.refresh', () => {
+      browse.refresh();
+      panels.refreshAll();
+    }),
     log,
     accounts,
     vscode.authentication.registerAuthenticationProvider(PROVIDER, 'EDGEmods', accounts, { supportsMultipleAccounts: false }),
@@ -33,31 +61,85 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
     vscode.commands.registerCommand('edgemods.chooseUsername', () => accounts.chooseUsername()),
     vscode.commands.registerCommand('edgemods.account', () => accounts.menu()),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('edgemods.site')) void accounts.siteChanged();
+      if (e.affectsConfiguration('edgemods.site')) {
+        void accounts.siteChanged().then(() => {
+          browse.draw();
+          panels.refreshAll();
+        });
+      }
     }),
     context.secrets.onDidChange((e) => {
       if (e.key === accounts.session.key) void accounts.refreshView();
     }),
   );
   void accounts.refreshView();
-  return { apiVersion: 1, openLink: (url) => openLink(accounts, url) };
+  return { apiVersion: 1, openLink: (url) => openLink(panels, downloads, url) };
 }
 
 export function deactivate(): void {}
 
-/** EDGEdeck hands over an edgemods: link. Installing from links is R4c; for now, the mod's page. */
-async function openLink(accounts: Accounts, url: string): Promise<void> {
+/** EDGEdeck hands over an edgemods: link (the website's Mod manager button): the mod's tab, then the install. */
+async function openLink(panels: ModPanels, downloads: Downloads, url: string): Promise<void> {
   const link = parseLink(url);
   log.appendLine(`link: ${link ? `${link.action} ${link.mod} ${link.version}` : 'not understood'}`);
   if (!link) {
     void vscode.window.showErrorMessage('That EDGEmods link is not one this version of the EDGEmods extension understands. Updating the extension may help.');
     return;
   }
+  await panels.open(link.mod, 'files');
+  await install(downloads, url);
+}
+
+/** Install, from a mod's tab or a link. Installing through EDGEdeck is R4c; until then, the files can be saved. */
+async function install(downloads: Downloads, url: string): Promise<void> {
+  const link = parseLink(url);
+  if (!link) return;
   const choice = await vscode.window.showInformationMessage(
-    `Installing from the website's Mod manager button comes in the next update of the EDGEmods extension. For now, ${link.mod} ${link.version} can be downloaded from its page.`,
-    'Open its page',
+    `Installing ${link.mod} ${link.version} through EDGEdeck, with its requirements, comes in the next update of the EDGEmods extension. For now you can save its files.`,
+    'Download the files',
   );
-  if (choice) await vscode.env.openExternal(vscode.Uri.parse(accounts.api.page(`/mods/${encodeURIComponent(link.mod)}?tab=files`)));
+  if (choice) await downloads.save(link.mod, link.version);
+}
+
+/** EDGEmods: Find a mod. Searches as you type; picking one opens its tab. */
+async function findMod(accounts: Accounts, panels: ModPanels): Promise<void> {
+  const pick = vscode.window.createQuickPick<vscode.QuickPickItem & { id?: string }>();
+  pick.title = 'Find a mod on EDGEmods';
+  pick.placeholder = 'Type words from its name, description, tags or author';
+  pick.matchOnDescription = true;
+  pick.matchOnDetail = true;
+  let asked = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const search = (q: string): void => {
+    const ask = ++asked;
+    pick.busy = true;
+    accounts.api.search({ q, sort: q.trim() ? 'relevance' : 'updated' }).then((r) => {
+      if (ask !== asked) return;
+      pick.items = r.cards.length
+        ? r.cards.map((c) => ({ label: c.name, description: `by ${c.author} · v${c.version}`, detail: c.summary, id: c.id, alwaysShow: true }))
+        : [{ label: q.trim() ? 'No mods match those words' : 'No mods on EDGEmods yet', alwaysShow: true }];
+    }, (err) => {
+      if (ask === asked) pick.items = [{ label: `$(warning) ${err instanceof Error ? err.message : err}`, alwaysShow: true }];
+    }).finally(() => {
+      if (ask === asked) pick.busy = false;
+    });
+  };
+  pick.onDidChangeValue((q) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => search(q), 250);
+  });
+  pick.onDidAccept(() => {
+    const id = pick.selectedItems[0]?.id;
+    if (!id) return;
+    pick.hide();
+    void panels.open(id);
+  });
+  pick.onDidHide(() => {
+    clearTimeout(timer);
+    pick.dispose();
+  });
+  pick.show();
+  search('');
 }
 
 /** The person's EDGEmods sign-in: VS Code's Accounts menu, the status bar and the commands. */
@@ -66,6 +148,8 @@ class Accounts implements vscode.AuthenticationProvider, vscode.Disposable {
   api: Api;
   private readonly changed = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
   readonly onDidChangeSessions = this.changed.event;
+  /** Someone signed in or out, or picked a new username: pages and lists show something else now. */
+  readonly onDidChangeAccount = this.changed.event;
   private readonly status = vscode.window.createStatusBarItem('edgemods.account', vscode.StatusBarAlignment.Left, 50);
   private shown?: vscode.AuthenticationSession;
   /** A free username EDGEmods offered, until one is picked. */
@@ -119,9 +203,16 @@ class Accounts implements vscode.AuthenticationProvider, vscode.Disposable {
   async signIn(): Promise<Account | undefined> {
     const method = await pickMethod();
     if (!method) return undefined;
-    const redirectUri = `${vscode.env.uriScheme}://${EXTENSION_ID}/auth`;
+    // Auth0 sends the browser to the site's landing page, which says what happened and hands the sign-in to this
+    // editor's link handler (vscode://edgemodders.edgemods/auth); the state names the editor.
+    const editor = vscode.env.uriScheme;
+    if (!EDITOR_SCHEMES.includes(editor)) {
+      void vscode.window.showErrorMessage(`EDGEmods: signing in from this editor (${editor}) is not supported yet. Sign in from VS Code.`);
+      return undefined;
+    }
+    const redirectUri = `${this.session.site}/auth/vscode`;
     try {
-      const { url, done } = await this.session.begin(redirectUri, method);
+      const { url, done } = await this.session.begin(redirectUri, method, editor);
       const opened = await vscode.env.openExternal(vscode.Uri.parse(url, true));
       if (!opened) throw new Error('VS Code could not open your browser.');
       await vscode.window.withProgress(
@@ -140,10 +231,11 @@ class Accounts implements vscode.AuthenticationProvider, vscode.Disposable {
     }
     const account = await this.loadAccount();
     if (account && !account.username) await this.chooseUsername();
+    else if (account?.username) void vscode.window.showInformationMessage(`Signed in to EDGEmods as ${account.username}.`);
     return this.session.account();
   }
 
-  /** The sign-in link from the browser: vscode://edgemodders.edgemods/auth?code=…&state=… */
+  /** The sign-in link from the site's landing page: vscode://edgemodders.edgemods/auth?code=…&state=… */
   async handleUri(uri: vscode.Uri): Promise<void> {
     if (uri.path !== '/auth') {
       log.appendLine(`link to ${uri.path}: not one this extension handles`);
