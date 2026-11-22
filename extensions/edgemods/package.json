@@ -2,7 +2,7 @@
   "name": "edgemods",
   "displayName": "EDGEmods",
   "description": "The EDGE mod registry for Cyberpunk 2077 in VS Code: sign in, find mods and install them with what they need, through EDGEdeck.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "edgemodders",
   "preview": true,
   "private": true,
