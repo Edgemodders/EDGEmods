@@ -420,7 +420,7 @@ To be agreed. The format comes first, because the checks, the website and the ex
 | The metadata format and the publishing form's fields | The format is drafted on its own page, [edgemods.json](manifest.html) (proposed, for the owner's review); the form's fields follow it |
 | Which malware scanner | ClamAV runs in the merge checks now (R2). VirusTotal as a second scanner waits on a reading of its terms for this use |
 | What the agent review tags and refuses | The owner defines it before R6 |
-| Nexus | Cross-posting, linked both ways? EDGEdeck already speaks to Nexus |
+| Nexus | Cross-posting, linked both ways? EDGEdeck already speaks to Nexus. **Listings from other sites** (the owner, 2026-11-23: mods from other sites shown like EDGEmods mods, with a Source filter, linking back, no files) are set aside: Nexus Mods' [Terms of Service](https://help.nexusmods.com/article/18-terms-of-service) (section 11) forbid scraping without an exemption from support@nexusmods.com, and the [API policy](https://help.nexusmods.com/article/114-api-acceptable-use-policy) forbids bulk fetching to rehost. Descriptions and images belong to each mod's author. The plan, if it comes back: a listings file format, a signed import into its own `listings.db`, a Source filter, and a takedown report |
 | Other git hosts | GitHub only for now |
 | Narrower GitHub access | If modders object to granting all their public repositories: an EDGEmods GitHub App installed on selected repositories only. To find out first with a test App: can it create the repository for the modder, and can a new repository join the installation without GitHub's install page? |
 | Privacy | No tracking on the website; the extension calls the network only when the user asks for something that needs it |
