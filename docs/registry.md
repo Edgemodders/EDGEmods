@@ -56,7 +56,7 @@ Steps 1 to 3 were done on 2026-10-17. Without them, the checks still run and rep
 | 2. Install it on EDGEmods only | The App's page > Install App > Edgemodders > Install | Choose "Only select repositories" and pick EDGEmods. The repository is chosen here, not on the create form |
 | 3. Give the workflow the App | EDGEmods > Settings > Secrets and variables > Actions | Variable `EDGEMODS_APP_ID` (the App ID shown on the App's page). Secret `EDGEMODS_APP_PRIVATE_KEY`: on the App's page, Private keys > Generate a private key, then paste the whole downloaded `.pem` file |
 | 4. Allow it to merge (only if `main` has rules) | EDGEmods > Settings > Rules > Rulesets | Skip this when there are no rulesets (true on 2026-10-17). If one is added later that requires pull requests or reviews on `main`, add the App to its bypass list. Do not create a ruleset just for this |
-| 5. Later, with the server (R3) | The same Actions settings | Variable `EDGEMODS_API_URL` and secret `EDGEMODS_REGISTRY_SECRET` connect the private blocklist. Until then the report says "Blocklist: not connected yet" |
+| 5. Once the website is live (R3h) | The same Actions settings | Variable `EDGEMODS_SITE` (`https://edgemods.ai`) and secret `EDGEMODS_CHECKS_SECRET` (the same value as on the server) connect the website: the checks ask its private blocklist, and record a passing result there before the merge, so the release shows. Until then the report says "Blocklist: not connected yet". The variable without the secret stops the checks rather than skipping the blocklist. [Deploy](deploy.html), step 7 |
 
 ## Run the checks by hand
 

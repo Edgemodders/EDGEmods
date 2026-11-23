@@ -1,0 +1,3 @@
+# The deploy files run on Linux: LF line endings whatever the checkout's platform (a CRLF shell script fails there).
+deploy/** text eol=lf
+*.sh text eol=lf

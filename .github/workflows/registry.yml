@@ -62,8 +62,9 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          EDGEMODS_API_URL: ${{ vars.EDGEMODS_API_URL }}
-          EDGEMODS_REGISTRY_SECRET: ${{ secrets.EDGEMODS_REGISTRY_SECRET }}
+          # The website, once it is live: the blocklist, and the passing result recorded before the merge.
+          EDGEMODS_SITE: ${{ vars.EDGEMODS_SITE }}
+          EDGEMODS_CHECKS_SECRET: ${{ secrets.EDGEMODS_CHECKS_SECRET }}
           HAS_APP: ${{ vars.EDGEMODS_APP_ID != '' }}
         run: |
           set +e

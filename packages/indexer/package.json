@@ -8,7 +8,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "edgemods-index": "bin/edgemods-index.mjs"
+    "edgemods-index": "bin/edgemods-index.mjs",
+    "edgemods-index-send": "bin/edgemods-index-send.mjs"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

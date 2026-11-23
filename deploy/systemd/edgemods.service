@@ -1,0 +1,63 @@
+# The EDGEmods website and API (packages/server). Installed by deploy/setup-edgemods.sh, which copies this file to
+# /etc/systemd/system/edgemods.service; edit it here and re-run the script rather than editing the copy.
+#
+#   systemctl status edgemods          journalctl -u edgemods -f
+#   systemctl reload edgemods          reloads index.db after one was moved into place by hand (SIGHUP)
+
+[Unit]
+Description=EDGEmods website (edgemods.ai)
+Documentation=https://edgemodders.github.io/EDGEmods/deploy.html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edgemods
+Group=edgemods
+WorkingDirectory=/opt/edgemods/current
+# The settings: secrets and choices, root:edgemods 0640. deploy/edgemods.env.example lists them.
+EnvironmentFile=/etc/edgemods.env
+# site.db, index.db and the image cache, owned by edgemods; systemd makes it. These win over the env file.
+Environment=EDGEMODS_DATA=/var/lib/edgemods
+Environment=EDGEMODS_ENV_FILE=/nonexistent
+Environment=NODE_ENV=production
+StateDirectory=edgemods
+StateDirectoryMode=0750
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning packages/server/bin/edgemods-server.mjs
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Hardening. The service reads its own code (root-owned, read-only to it), writes only /var/lib/edgemods, and talks
+# to nginx on the loopback and to Auth0 and GitHub over HTTPS.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+UMask=0027
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+# Only @system-service: Node raises its open-file limit with setrlimit at start, which ~@resources would kill.
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Node's JIT needs writable, executable memory, so no MemoryDenyWriteExecute.
+# A ceiling well above the design's estimate (docs/design.md, "Hosting", Memory), so a leak cannot starve the
+# other services on the server.
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target

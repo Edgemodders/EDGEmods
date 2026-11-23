@@ -1,0 +1,61 @@
+# The index rebuild (goal 8; docs/design.md, "Runners"; docs/deploy.md, step 6): builds index.db from the registry
+# and the mods' repositories, and hands it to the website (POST /api/v1/admin/index), which checks it and swaps it in.
+#
+# Trusted events only: a push to main that changes the registry (an auto-merged publish), the hourly schedule (new
+# releases in the mods' repositories), or by hand. Never a pull request: a test fails if this workflow gets one
+# (packages/server/test/deploy.test.mjs).
+#
+# Off until the site is live: the job runs only once the repository variable EDGEMODS_SITE is set (the site's
+# address, https://edgemods.ai). It needs the secret EDGEMODS_INDEX_SECRET, the same value as on the server.
+# Where it runs: GitHub's runner, unless the variable EDGEMODS_INDEX_RUNS_ON names another as JSON, such as
+# ["self-hosted","edgemods"] for the owner's runner.
+
+name: Index rebuild
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'registry/**'
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: index-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    if: vars.EDGEMODS_SITE != ''
+    runs-on: ${{ fromJSON(vars.EDGEMODS_INDEX_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build the indexer
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund -w packages/format -w packages/checks -w packages/indexer
+          for p in format checks indexer; do npm run build -w packages/$p; done
+
+      - name: Build index.db
+        env:
+          # Reads public repositories only; the workflow's own token lifts GitHub's limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node packages/indexer/bin/edgemods-index.mjs --registry registry --out "$RUNNER_TEMP/index.db" --ref "$GITHUB_SHA"
+
+      - name: Hand it to the website
+        env:
+          EDGEMODS_INDEX_SECRET: ${{ secrets.EDGEMODS_INDEX_SECRET }}
+          EDGEMODS_SITE: ${{ vars.EDGEMODS_SITE }}
+        run: node packages/indexer/bin/edgemods-index-send.mjs "$RUNNER_TEMP/index.db" "$EDGEMODS_SITE"

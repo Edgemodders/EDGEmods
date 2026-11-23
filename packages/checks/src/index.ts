@@ -5,4 +5,4 @@ export { listArchive, listZip, list7z, sha256, ArchiveError, type ArchiveEntry }
 export { kindOf, summarize, unsafePaths, KIND_LABELS, RUNS_CODE, type ContentKind, type ContentSummary } from './contents.js';
 export { clamav, ScannerUnavailable, type Scanner, type ScanResult } from './scan.js';
 export { renderReport, REPORT_MARKER } from './report.js';
-export { blocklistApi } from './blocklist.js';
+export { blocklistApi, sendCheckResult } from './blocklist.js';

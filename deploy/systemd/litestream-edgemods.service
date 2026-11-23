@@ -1,0 +1,38 @@
+# Backs up EDGEmods' site.db to S3, continuously (docs/deploy.md, step 5). Installed by deploy/setup-litestream.sh.
+# Separate from TheLostRealms' litestream.service and /etc/litestream.yml, which it never touches.
+#
+#   systemctl status litestream-edgemods      journalctl -u litestream-edgemods -f
+
+[Unit]
+Description=Litestream backup of EDGEmods' site.db
+Documentation=https://edgemodders.github.io/EDGEmods/deploy.html
+After=network-online.target edgemods.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# As the service's own user: it must read site.db and its -wal and -shm files, and write the .site.db-litestream
+# folder beside them. The S3 credentials come from the instance role, so nothing secret is on disk.
+User=edgemods
+Group=edgemods
+ExecStart=/usr/bin/litestream replicate -config /etc/litestream-edgemods.yml
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/edgemods
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
