@@ -1,6 +1,13 @@
 # Deploy
 
-How to put the EDGEmods website on the server at https://edgemods.ai, and how to update it. It is written to be followed step by step, by a person or by the Claude session that looks after the server. Written 2026-11-22 for R3h. **The scripts have not run on the server yet**; the first install is their test, so read what each step prints.
+How to put the EDGEmods website on the server at https://edgemods.ai, and how to update it. It is written to be followed step by step, by a person or by the Claude session that looks after the server. Written 2026-11-22 for R3h. **The scripts have not run on the server yet**, so read what each step prints. On 2026-11-22 they ran in an Amazon Linux 2023 container with systemd and Node 22.23 (on a PC, with Docker):
+
+| Tried | Result |
+|---|---|
+| `setup-edgemods.sh`: first install, a second run, an update, a broken update, a dry run | All worked. The broken build was rolled back in 3 seconds, and the old one answered again. The first install took about 2 minutes, most of it downloading packages. The unit's hardening scores 1.7 ("OK") in `systemd-analyze security`; the service used 23 MB and cannot write its own code |
+| The nginx site, written as `add-domain.sh` writes it | `nginx -t` passes, www redirects, the internal download location answers 404 from outside, a 2 MB body is refused on ordinary paths |
+| The index handover | Through nginx and with the send script; `systemctl reload edgemods` reloads an index |
+| Not tried | certbot and the DNS check (`add-domain.sh`), Litestream with a real bucket (`setup-litestream.sh`), downloads at the free speed through nginx. These need the server |
 
 The plan behind it is in [the design](design.html#hosting) ("Hosting" and "Runners"). In short: EDGEmods runs on the same server as TheLostRealms, beside it and never inside it. It has its own user, folder, settings, service, nginx file, backup unit and S3 bucket, and changes nothing of TheLostRealms'.
 

@@ -44,6 +44,9 @@ note() { printf '  ..  %s\n' "$*"; }
 warn() { printf '  !!  %s\n' "$*" >&2; }
 die()  { printf '\n  STOPPED: %s\n\n' "$*" >&2; exit 1; }
 run()  { if [ "$DRY" -eq 1 ]; then printf '  dry %s\n' "$*"; else "$@"; fi; }
+# "ok" after a change: only when it was made (a dry run has already printed what it would run).
+did()  { [ "$DRY" -eq 1 ] || say "$@"; }
+export npm_config_update_notifier=false npm_config_fund=false npm_config_audit=false
 MANUAL=()
 
 echo "EDGEmods setup$([ "$DRY" -eq 1 ] && printf ' (dry run: nothing changes)')"
@@ -85,7 +88,7 @@ if id "$SVC_USER" >/dev/null 2>&1; then
   say "user $SVC_USER exists"
 else
   run useradd --system --home-dir "$DATA" --no-create-home --shell "$(command -v nologin || echo /sbin/nologin)" "$SVC_USER"
-  say "user $SVC_USER made"
+  did "user $SVC_USER made"
 fi
 run install -d -m 0750 -o "$SVC_USER" -g "$SVC_USER" "$DATA"
 
@@ -133,7 +136,7 @@ if [ -f "$ENV_FILE" ]; then
   run chmod 0640 "$ENV_FILE"
 else
   run install -m 0640 -o root -g "$SVC_USER" "$REPO/deploy/edgemods.env.example" "$ENV_FILE"
-  say "$ENV_FILE made from the example"
+  did "$ENV_FILE made from the example"
   MANUAL+=("Fill the secrets in $ENV_FILE (sudo nano $ENV_FILE; docs/deploy.md, step 3), then: sudo systemctl restart edgemods")
 fi
 
@@ -143,7 +146,7 @@ if cmp -s "$REPO/deploy/systemd/edgemods.service" "$UNIT"; then
 else
   run install -m 0644 "$REPO/deploy/systemd/edgemods.service" "$UNIT"
   run systemctl daemon-reload
-  say "$UNIT installed"
+  did "$UNIT installed"
 fi
 run systemctl enable edgemods >/dev/null 2>&1 || true
 
@@ -155,7 +158,7 @@ if cmp -s "$REPO/deploy/nginx/edgemods-downloads.conf" "$SNIPPET"; then
 else
   run install -d -m 0755 "$SNIPPETS"
   run install -m 0644 "$REPO/deploy/nginx/edgemods-downloads.conf" "$SNIPPET"
-  say "$SNIPPET installed"
+  did "$SNIPPET installed"
   if command -v nginx >/dev/null && grep -rqs "$SNIPPET" /etc/nginx/conf.d; then
     if [ "$DRY" -eq 1 ]; then note "would test and reload nginx"
     else nginx -t >/dev/null 2>&1 || die "nginx -t fails with the new snippet: $(nginx -t 2>&1 | tail -3)"; systemctl reload nginx; say "nginx reloaded"; fi
@@ -179,11 +182,14 @@ fi
 # ---- switch and restart ------------------------------------------------------------------------------------------
 PREV="$(readlink "$APP/current" 2>/dev/null || true)"
 switch_to() { ln -sfn "$1" "$APP/current.new" && mv -T "$APP/current.new" "$APP/current"; }
+# Waits up to 20 s for /healthz, giving up once the service has exited (systemd would only restart it again).
 healthy() {
-  local i body
+  local i body state
   for i in $(seq 1 20); do
     body="$(curl -fsS --max-time 2 "http://127.0.0.1:$PORT/healthz" 2>/dev/null || true)"
     case "$body" in *'"ok":true'*) echo "$body"; return 0 ;; esac
+    state="$(systemctl show edgemods -p ActiveState -p SubState --value | tr '\n' ' ')"
+    case "$state" in failed*|*auto-restart*) [ "$i" -ge 3 ] && return 1 ;; esac
     sleep 1
   done
   return 1
@@ -200,9 +206,12 @@ else
     if [ -n "$PREV" ] && [ "$PREV" != "$REL" ] && [ -d "$PREV" ]; then
       switch_to "$PREV"
       systemctl restart edgemods
-      die "release $COMMIT did not answer on /healthz within 20 s (its log is above); put back $(basename "$PREV")"
+      if healthy >/dev/null; then
+        die "release $COMMIT did not answer on /healthz (its log is above). Put back $(basename "$PREV"), which answers again"
+      fi
+      die "release $COMMIT did not answer on /healthz (its log is above), and $(basename "$PREV"), put back, does not answer either: journalctl -u edgemods -n 50"
     fi
-    die "edgemods did not answer on /healthz within 20 s; its log is above (journalctl -u edgemods -n 50)"
+    die "edgemods did not answer on /healthz; its log is above (journalctl -u edgemods -n 50)"
   fi
 fi
 
