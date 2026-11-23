@@ -241,4 +241,4 @@ The live site gets its own tenant, so test accounts and test settings never mix 
 | Email | Auth0's built-in email is for testing only: 10 emails a minute, from `no-reply@auth0user.net`. The live site sends through Amazon SES (on the same AWS account) from an `edgemods.ai` address |
 | Website application | Callback `https://edgemods.ai/auth/callback`, logout `https://edgemods.ai/` |
 | API, server application and VS Code application | As in steps 4, 5 and 9 |
-| Settings | The same names as steps 7 and 9, in `/etc/edgemods.env` on the server |
+| Settings | The same names as steps 7 and 9, in `/etc/edgemods.env` on the server. `EDGEMODS_AUTH0_DOMAIN` is the custom domain, `login.edgemods.ai`, and one more line, `EDGEMODS_AUTH0_MANAGEMENT_DOMAIN`, holds the tenant's own domain (`edgemods.us.auth0.com`): Auth0's Management API takes its audience on the tenant's own domain, never the custom one. The service says at start if it is missing |

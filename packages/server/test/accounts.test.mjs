@@ -366,5 +366,18 @@ describe('settings', () => {
     assert.equal(loadConfig({ ...full, EDGEMODS_SESSION_SECRET: 'short' }).auth, undefined);
     const managed = loadConfig({ ...full, EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID: 'm', EDGEMODS_AUTH0_MANAGEMENT_CLIENT_SECRET: 'ms' });
     assert.deepEqual(managed.auth.management, { domain: 'edgemods-dev.us.auth0.com', clientId: 'm', clientSecret: 'ms' });
+    assert.equal(managed.authProblems.some((p) => /MANAGEMENT_DOMAIN/.test(p)), false);
+  });
+
+  test('a custom login domain needs the tenant\'s own domain for the Management API', () => {
+    const custom = {
+      EDGEMODS_AUTH0_DOMAIN: 'login.edgemods.ai', EDGEMODS_AUTH0_CLIENT_ID: 'id', EDGEMODS_AUTH0_CLIENT_SECRET: 'secret',
+      EDGEMODS_SESSION_SECRET: 'x'.repeat(43), EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID: 'm', EDGEMODS_AUTH0_MANAGEMENT_CLIENT_SECRET: 'ms',
+    };
+    assert.ok(loadConfig(custom).authProblems.some((p) => /MANAGEMENT_DOMAIN is not the tenant's own domain/.test(p)));
+    const both = loadConfig({ ...custom, EDGEMODS_AUTH0_MANAGEMENT_DOMAIN: 'https://edgemods.us.auth0.com/' });
+    assert.equal(both.auth.domain, 'login.edgemods.ai');
+    assert.equal(both.auth.management.domain, 'edgemods.us.auth0.com');
+    assert.equal(both.authProblems.some((p) => /MANAGEMENT_DOMAIN/.test(p)), false);
   });
 });

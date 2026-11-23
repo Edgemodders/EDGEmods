@@ -18,7 +18,7 @@ describe('the deploy files', () => {
     const code = ['packages/server/src/config.ts', 'packages/server/src/downloads.ts'].map(read).join('\n');
     const read_ = new Set([...code.matchAll(/(?:env\.|get\(')(EDGEMODS_[A-Z0-9_]+)/g)].map((m) => m[1]));
     // Set by the unit, or for a PC only.
-    for (const own of ['EDGEMODS_DATA', 'EDGEMODS_INDEX', 'EDGEMODS_SHOW_UNCHECKED', 'EDGEMODS_AUTH0_MANAGEMENT_DOMAIN']) read_.delete(own);
+    for (const own of ['EDGEMODS_DATA', 'EDGEMODS_INDEX', 'EDGEMODS_SHOW_UNCHECKED']) read_.delete(own);
     const example = new Set([...read('deploy/edgemods.env.example').matchAll(/^(EDGEMODS_[A-Z0-9_]+)=/gm)].map((m) => m[1]));
     assert.deepEqual([...read_].filter((n) => !example.has(n)), [], 'read by the service, missing from the example');
     assert.deepEqual([...example].filter((n) => !read_.has(n)), [], 'in the example, never read');

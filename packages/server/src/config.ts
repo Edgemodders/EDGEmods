@@ -126,6 +126,10 @@ function authConfig(env: NodeJS.ProcessEnv): { auth?: AuthConfig; authProblems: 
     },
     authProblems: [
       ...(mId && mSecret ? [] : ['EDGEMODS_AUTH0_MANAGEMENT_CLIENT_ID or _SECRET is not set: sign-in works, deleting an account does not.']),
+      // The Management API's address is always the tenant's own (….auth0.com), never a custom login domain.
+      ...(mId && mSecret && !/\.auth0\.com$/i.test(mDomain)
+        ? [`EDGEMODS_AUTH0_MANAGEMENT_DOMAIN is not the tenant's own domain (….auth0.com): with a custom login domain, set it, or deleting an account fails.`]
+        : []),
       ...(get('EDGEMODS_AUTH0_EXTENSION_CLIENT_ID') && !get('EDGEMODS_AUTH0_AUDIENCE') ? ['EDGEMODS_AUTH0_EXTENSION_CLIENT_ID needs EDGEMODS_AUTH0_AUDIENCE, so VS Code sign-in is off.'] : []),
       ...(get('EDGEMODS_AUTH0_EXTENSION_CLIENT_ID') ? [] : ['EDGEMODS_AUTH0_EXTENSION_CLIENT_ID is not set: the website signs in, VS Code does not.']),
     ],
