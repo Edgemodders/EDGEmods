@@ -146,7 +146,7 @@ In the EDGEmods repository on GitHub, Settings, Secrets and variables, Actions (
 |---|---|---|
 | Secret | `EDGEMODS_INDEX_SECRET` | The same value as in `/etc/edgemods.env` |
 | Variable | `EDGEMODS_SITE` | `https://edgemods.ai`. The workflow does nothing until this is set |
-| Variable, optional | `EDGEMODS_INDEX_RUNS_ON` | Leave unset for GitHub's runner. `["self-hosted","edgemods"]` uses the owner's runner instead (the design's proposal; no setup script for it yet) |
+| Variable, optional | `EDGEMODS_INDEX_RUNS_ON` | Leave unset: the rebuild runs on GitHub's runner (the owner, 2026-11-22). `["self-hosted","edgemods"]` would use a runner on the server, which is not set up |
 
 **Check:** in Actions, run **Index rebuild** by hand. Its last step says `edgemods.ai took the index`, and `journalctl -u edgemods | grep Index` on the server shows the swap.
 
@@ -200,4 +200,4 @@ When `deploy/nginx/edgemods-downloads.conf` changes, the script installs it and 
 | Release checks for updates (`release-check` in the design) | When a modder makes a new release of a mod that is already listed, nothing checks it yet, so the site keeps showing the release it has. Needed before modders depend on the live site |
 | The GitHub webhook (R3g) | New releases show at the next hourly index instead of at once |
 | Removing a mod through the EDGEmods App | Admins can hide or block a mod; taking its registry file out is a pull request by hand for now |
-| The owner's runner (`deploy/runner/`) | Only needed if the owner picks it for the index rebuild (step 6) |
+| A runner on the server (`deploy/runner/`) | The fallback if updates by the server session do not work out (the owner, 2026-11-22): it would deploy each commit. Not built |
