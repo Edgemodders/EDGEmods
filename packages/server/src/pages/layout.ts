@@ -127,7 +127,7 @@ ${meta.image ? html`<meta property="og:image" content="${ctx.publicUrl}${meta.im
 </div></header>
 ${body}
 <footer class="wrap"><span>EDGEMODS · THE EDGE MOD REGISTRY FOR CYBERPUNK 2077</span>
-  <nav><a href="/publish">Publish</a><a href="https://edgemodders.github.io/EDGEmods/">Docs</a></nav>
+  <nav><a href="/publish">Publish</a><a href="https://edgemodders.github.io/EDGEmods/">Docs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
   <span>Mods live in their authors' repositories. Not affiliated with CD Projekt RED.</span></footer>
 </body>
 </html>`;

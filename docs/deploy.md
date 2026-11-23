@@ -33,7 +33,7 @@ These need the owner's accounts or decisions. A session on the server cannot do 
 |---|---|
 | DNS | `A` records for `edgemods.ai` and `www.edgemods.ai`, pointing at the server's public address. Add them first: Let's Encrypt checks them, and limits retries after failures |
 | Auth0, production | The production tenant, as in [Auth0 setup](auth0-setup.html#later-the-live-site-r3h). Callbacks: `https://edgemods.ai/auth/callback` for the website, `https://edgemods.ai/auth/vscode` for the VS Code application |
-| Privacy and terms pages | Google's consent screen asks for both, and a site with accounts needs them. EDGEmods has neither yet: their text is the owner's |
+| Privacy and terms pages | Google's consent screen asks for both, and a site with accounts needs them. Drafted 2026-11-23 at `/privacy` and `/terms` (`packages/server/src/pages/legal.ts`), with the facts from the code; the owner fills the [bracketed] gaps (who runs EDGEmods, contact, log and backup days, the minimum age, the law), agrees the text and sets `LEGAL_DRAFT` to false |
 | The bucket | A new S3 bucket for EDGEmods' backups: versioned, private (block all public access), encrypted. The policy for the server's role is in step 5 |
 | Secrets | Two random values: `EDGEMODS_CHECKS_SECRET` and `EDGEMODS_INDEX_SECRET`, each made with `openssl rand -base64 48`. Each goes in two places: `/etc/edgemods.env` on the server, and the EDGEmods repository's Actions secrets. Also `EDGEMODS_SESSION_SECRET`, on the server only |
 | A GitHub token for the server | Optional: a fine-grained token with public read only, for `EDGEMODS_GITHUB_TOKEN`. Without one, GitHub allows the server 60 reads an hour |

@@ -25,6 +25,7 @@ import { browsePage, defaultSort, homePage } from './pages/browse.js';
 import { message, type PageContext, type Viewer } from './pages/layout.js';
 import { MOD_TABS, modPage, type ModTab } from './pages/mod.js';
 import { publishPage } from './pages/publish.js';
+import { privacyPage, termsPage } from './pages/legal.js';
 import { resolvePlan } from './plan.js';
 import type { SiteStore } from './site-store.js';
 
@@ -156,6 +157,8 @@ export function createApp(deps: AppDeps): express.Express {
   });
 
   app.get('/publish', (req, res) => send(res, publishPage(ctxOf(req))));
+  app.get('/privacy', (req, res) => send(res, privacyPage(ctxOf(req))));
+  app.get('/terms', (req, res) => send(res, termsPage(ctxOf(req))));
 
   // ---- accounts ----
   const form = express.urlencoded({ extended: false, limit: '10kb', parameterLimit: 20 });

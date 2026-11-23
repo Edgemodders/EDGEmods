@@ -207,6 +207,9 @@ select.sort:focus { outline: none; border-color: var(--yellow); }
 .readme h2 { font-size: 22px; margin: 22px 0 8px; } .readme h2:first-child { margin-top: 0; }
 .readme ul, .readme ol { padding-left: 22px; max-width: 72ch; } .readme li::marker { color: var(--yellow); }
 .readme code { font-family: var(--mono); font-size: .8em; color: var(--yellow); background: rgba(252,238,10,.08); padding: 1px 5px; }
+.legal .readme { max-width: 78ch; padding-bottom: 32px; } .legal .readme p { max-width: 72ch; }
+.legal .draftnote { border-color: rgba(252,238,10,.5); color: var(--soft); margin: 18px 0 26px; } .legal .draftnote b { color: var(--yellow); }
+mark.todo { background: rgba(255,42,82,.14); color: var(--red); padding: 0 4px; font-family: var(--mono); font-size: .85em; }
 .files { display: flex; flex-direction: column; gap: 14px; }
 .filegroup .label { display: flex; align-items: baseline; gap: 10px; }
 .filegroup .label em { font-style: normal; letter-spacing: .02em; text-transform: none; color: var(--soft); font-family: var(--body); font-size: 15px; }

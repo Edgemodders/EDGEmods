@@ -52,6 +52,22 @@ describe('as a visitor', () => {
     assert.match(search, /&lt;img src=x onerror=alert\(1\)&gt;/);
   });
 
+  test('the privacy and terms pages, linked from every page, with the facts the code sets', async () => {
+    const { SESSION_COOKIE, SESSION_LIFE_MS } = await import('../dist/index.js');
+    const { HOLD_MS } = await import('../dist/usernames.js');
+    const { LEGAL_DRAFT } = await import('../dist/pages/legal.js');
+    const home = await t.text('/');
+    assert.match(home, /href="\/privacy"/);
+    assert.match(home, /href="\/terms"/);
+    const privacy = await t.text('/privacy');
+    assert.match(privacy, new RegExp(`<code>${SESSION_COOKIE}</code> keeps you signed in for up to ${SESSION_LIFE_MS / 86_400_000} days`));
+    assert.match(privacy, new RegExp(`username is held for ${HOLD_MS / 86_400_000} days`));
+    assert.match(privacy, /"Download my data"/);
+    const terms = await t.text('/terms');
+    assert.match(terms, /href="\/privacy"/);
+    for (const body of [privacy, terms]) assert.equal(/<meta name="robots" content="noindex">/.test(body), LEGAL_DRAFT);
+  });
+
   test('search, facets and filters', async () => {
     const hit = await t.json('/api/v1/mods?q=street');
     assert.deepEqual(hit.cards.map((c) => c.id), ['street-cred']);

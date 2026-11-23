@@ -27,6 +27,7 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 - Download everything EDGEmods keeps about you, and delete your account.
 - Email-and-password accounts can ask for a link to change their password.
 - The EDGEmods extension for VS Code can sign in to the website: the same account, with its downloads counted the same way.
+- Privacy and Terms pages, linked from the foot of every page (drafts until agreed).
 
 ### Changed
 
