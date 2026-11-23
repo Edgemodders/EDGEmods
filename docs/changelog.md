@@ -32,7 +32,7 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 
 - A mod's page has two buttons: Mod manager, which opens your mod manager (EDGEdeck, or another that supports EDGEmods links) to install it with its requirements, and Manual download.
 - Page headers wear the EDGE banner's background: its grid and a yellow glow from the bottom left.
-- The filters column on the left scrolls with a thin yellow line instead of the browser's own scrollbar.
+- Scrollbars are thin yellow lines instead of the browser's own: the page's, the filters column's, and any box that scrolls.
 
 ### Fixed
 

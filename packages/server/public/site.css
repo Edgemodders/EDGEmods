@@ -136,13 +136,15 @@ section { margin-top: 48px; }
 /* browse */
 .browse { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; margin-top: 28px; align-items: start; }
 .facets { position: sticky; top: 62px; display: flex; flex-direction: column; gap: 18px; max-height: calc(100vh - 80px); overflow: auto; padding-right: 4px; }
-/* A thin yellow line for a scrollbar. Chrome, Edge and Safari take the ::-webkit-scrollbar rules (and would ignore them
-   if scrollbar-color were set), so the standard properties are only for browsers without them, such as Firefox. */
+/* Scrollbars are thin yellow lines: the page's, and any box that scrolls; the filters column's thinnest. Chrome, Edge
+   and Safari take the ::-webkit-scrollbar rules (and would ignore them if scrollbar-color were set), so the standard
+   properties are only for browsers without them, such as Firefox. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(252,238,10,.55); }
+::-webkit-scrollbar-thumb:hover { background: var(--yellow); }
 .facets::-webkit-scrollbar { width: 3px; }
-.facets::-webkit-scrollbar-track { background: transparent; }
-.facets::-webkit-scrollbar-thumb { background: rgba(252,238,10,.55); }
-.facets::-webkit-scrollbar-thumb:hover { background: var(--yellow); }
-@supports not selector(::-webkit-scrollbar) { .facets { scrollbar-width: thin; scrollbar-color: rgba(252,238,10,.55) transparent; } }
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: rgba(252,238,10,.55) transparent; } }
 .facet h3 { font-size: 13px; margin-bottom: 6px; }
 .facet label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; font-size: 16px; color: var(--soft); }
 .facet label:hover { color: var(--fg); }
