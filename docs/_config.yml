@@ -39,6 +39,8 @@ nav:
     url: /links.html
   - title: Auth0
     url: /auth0-setup.html
+  - title: Deploy
+    url: /deploy.html
   - title: Changelog
     url: /changelog.html
   - title: EDGEdeck
