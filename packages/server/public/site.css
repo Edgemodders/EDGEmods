@@ -141,10 +141,9 @@ section { margin-top: 48px; }
    properties are only for browsers without them, such as Firefox. */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(252,238,10,.55); }
-::-webkit-scrollbar-thumb:hover { background: var(--yellow); }
+::-webkit-scrollbar-thumb { background: var(--yellow); }
 .facets::-webkit-scrollbar { width: 3px; }
-@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: rgba(252,238,10,.55) transparent; } }
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: var(--yellow) transparent; } }
 .facet h3 { font-size: 13px; margin-bottom: 6px; }
 .facet label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; font-size: 16px; color: var(--soft); }
 .facet label:hover { color: var(--fg); }
