@@ -42,6 +42,11 @@ export interface PlanMod {
   offered: PlanFile[];
   /** The mods that need this one, by id; empty for the picked mod. */
   neededBy: string[];
+  /**
+   * What each of those mods accepts: a release and any newer one, or exactly it. The extension skips a mod the
+   * library already has at a release every one of these accepts (docs/design.md, "Already installed").
+   */
+  wants: { version: string; exact?: boolean; by: string }[];
 }
 
 export interface PlanLink {
@@ -122,6 +127,7 @@ export function resolvePlan(source: PlanSource, request: PlanRequest, download?:
       files: selected.map(asPlanFile),
       offered: release.files.filter((f) => !selected.includes(f)).map(asPlanFile),
       neededBy: [...(walk.neededBy.get(id) ?? [])],
+      wants: (walk.constraints.get(id) ?? []).map((c) => ({ version: c.version, ...(c.exact ? { exact: true } : {}), by: c.by })),
     };
   });
   return {

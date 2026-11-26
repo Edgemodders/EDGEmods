@@ -27,6 +27,9 @@ test('requirements come first, each at the newest release allowed', () => {
   // A pre-release is chosen only when nothing else fits.
   assert.deepEqual(order(plan), ['base@1.0.0', 'core@1.3.0', 'app@1.0.0']);
   assert.deepEqual(plan.mods.find((m) => m.id === 'core').neededBy, ['app']);
+  // What each needing mod accepts, so the extension can keep a release the library already has.
+  assert.deepEqual(plan.mods.find((m) => m.id === 'core').wants, [{ version: '1.2.0', by: 'app' }]);
+  assert.deepEqual(plan.mods.find((m) => m.id === 'app').wants, []);
   assert.deepEqual(plan.links, [{ name: 'ArchiveXL', url: 'https://example.com/axl', neededBy: ['app'] }]);
   assert.equal(plan.mods[0].files[0].download, '/download/base/1.0.0/f-1.0.0.zip');
   assert.equal(plan.size, 30);
@@ -40,6 +43,7 @@ test('a pinned requirement holds everyone to that release', () => {
   }), { mod: 'app' });
   assert.deepEqual(plan.problems, []);
   assert.equal(plan.mods.find((m) => m.id === 'core').version, '1.2.0');
+  assert.deepEqual(plan.mods.find((m) => m.id === 'core').wants, [{ version: '1.0.0', by: 'app' }, { version: '1.2.0', exact: true, by: 'skin' }]);
   assert.equal(plan.mods.at(-1).id, 'app');
   assert.ok(order(plan).indexOf('core@1.2.0') < order(plan).indexOf('skin@1.0.0'));
 });
