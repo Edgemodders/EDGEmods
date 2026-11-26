@@ -90,6 +90,41 @@ export interface ModInfo {
   releases: ModRelease[];
 }
 
+/** A file in an install plan (GET /api/v1/mods/<id>/install-plan, packages/server/src/plan.ts). */
+export interface PlanFile {
+  name: string;
+  role: string;
+  group?: string;
+  title?: string;
+  size: number;
+  /** What EDGEmods recorded when it checked the release; missing for a release not checked yet. */
+  sha256?: string;
+}
+
+export interface PlanMod {
+  id: string;
+  name: string;
+  version: string;
+  /** The files to install. */
+  files: PlanFile[];
+  /** Files the player may add or swap in: optional files, and the other files of each choose-one group. */
+  offered: PlanFile[];
+  /** The mods that need this one, by id; empty for the mod asked for. */
+  neededBy: string[];
+  /** What each of those accepts. Missing from sites older than 2026-11-26. */
+  wants?: { version: string; exact?: boolean; by: string }[];
+}
+
+/** What installing a mod brings: requirements first, the mod asked for last. */
+export interface Plan {
+  mod: string;
+  mods: PlanMod[];
+  links: { name: string; url: string; note?: string; neededBy: string[] }[];
+  /** Plain words; any problem means nothing can be installed. */
+  problems: string[];
+  size: number;
+}
+
 export const REPORT_REASONS = {
   broken: 'Does not work',
   malware: 'Malware or harmful',
@@ -106,7 +141,8 @@ export function imagePath(mod: string, path: string): string {
 
 /** The site answered with an error. `code` is the site's own word for it (`username`, `blocked`, `taken`, …). */
 export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  /** `data`: the site's answer, when it sent one. */
+  constructor(readonly status: number, readonly code: string, message: string, readonly data?: unknown) {
     super(message);
     this.name = 'ApiError';
   }
@@ -190,6 +226,24 @@ export class Api {
   /** True when the report went to the admins; false when this person already has one open for the mod. */
   async report(id: string, reason: ReportReason, note: string): Promise<boolean> {
     return (await this.call<{ sent: boolean }>('POST', `/api/v1/mods/${encodeURIComponent(id)}/report`, { reason, note })).sent;
+  }
+
+  /**
+   * What installing a mod brings. A plan the site could not make (an unknown mod or release) comes back with its
+   * problem rather than as an error. `signed` false asks as a visitor, as the MCP server does.
+   */
+  async installPlan(id: string, q: { version?: string; files?: string[] } = {}, signed = true): Promise<Plan> {
+    const p = new URLSearchParams();
+    if (q.version) p.set('version', q.version);
+    for (const f of q.files ?? []) p.append('files', f);
+    const text = p.toString();
+    const path = `/api/v1/mods/${encodeURIComponent(id)}/install-plan${text ? `?${text}` : ''}`;
+    try {
+      return await this.call<Plan>('GET', path, undefined, signed);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && err.data && Array.isArray((err.data as Partial<Plan>).problems)) return err.data as Plan;
+      throw err;
+    }
   }
 
   /** A file's download address on the site, which counts it and serves it (a sign-in is needed). */
@@ -282,7 +336,7 @@ export class Api {
     if (!res.ok) {
       const code = typeof data?.error === 'string' ? data.error : `http-${res.status}`;
       const message = typeof data?.message === 'string' ? data.message : MESSAGES[code] ?? `EDGEmods answered HTTP ${res.status}.`;
-      throw new ApiError(res.status, code, message);
+      throw new ApiError(res.status, code, message, data);
     }
     if (data === undefined) throw new ApiError(res.status, 'not-json', 'EDGEmods sent an answer this extension cannot read.');
     return data as T;

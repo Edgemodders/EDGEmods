@@ -22,7 +22,7 @@
     const act = e.target.closest('[data-act]');
     if (act) {
       e.preventDefault();
-      vscode.postMessage({ type: 'act', act: act.dataset.act });
+      vscode.postMessage({ type: 'act', act: act.dataset.act, version: act.dataset.version });
       return;
     }
     const tab = e.target.closest('[data-tab]');

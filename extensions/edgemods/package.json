@@ -126,6 +126,12 @@
         "icon": "$(search)"
       },
       {
+        "command": "edgemods.installMod",
+        "title": "Install a mod",
+        "category": "EDGEmods",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "edgemods.refresh",
         "title": "Refresh",
         "category": "EDGEmods",

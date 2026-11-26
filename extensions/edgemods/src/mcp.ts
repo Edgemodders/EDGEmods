@@ -1,15 +1,18 @@
 // The EDGEmods MCP server: finding mods, a mod's details and what installing it brings, as tools for an assistant,
-// over stdio. VS Code starts it for the agents it hosts (1.101 and newer); Claude Code and other clients start it
-// with the line from "EDGEmods: Connect an assistant (MCP)":
-//   node dist/mcp.js [--site https://edgemods.ai]
-// It reaches the site only when a tool is called, as a visitor (src/core/tools.ts).
+// over stdio, and installing one by asking the EDGEmods extension in VS Code. VS Code starts it for the agents it
+// hosts (1.101 and newer); Claude Code and other clients start it with the line from "EDGEmods: Connect an assistant
+// (MCP)":
+//   node dist/mcp.js [--site https://edgemods.ai] [--editor vscode]
+// It reaches the site only when a tool is called, as a visitor (src/core/tools.ts). `--editor` is the link scheme
+// of the editor mods_install asks (vscode, vscode-insiders, cursor, ...).
 
+import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { Api, siteOf, SORTS } from './core/index.js';
-import { INSTRUCTIONS, installPlan, modInfo, searchMods, type ToolResult } from './core/tools.js';
+import { Api, EDITOR_SCHEMES, siteOf, SORTS } from './core/index.js';
+import { INSTRUCTIONS, installPlan, modInfo, requestInstall, searchMods, type ToolResult } from './core/tools.js';
 
 const DEFAULT_SITE = 'https://edgemods.ai';
 const args = process.argv.slice(2);
@@ -22,6 +25,27 @@ const site = siteOf(asked ?? DEFAULT_SITE);
 if (!site) {
   process.stderr.write(`EDGEmods: ${asked} is not an https address, or http on this PC.\n`);
   process.exit(2);
+}
+const editor = flag('editor') ?? 'vscode';
+if (!EDITOR_SCHEMES.includes(editor)) {
+  process.stderr.write(`EDGEmods: --editor ${editor} is not one of ${EDITOR_SCHEMES.join(', ')}.\n`);
+  process.exit(2);
+}
+
+/**
+ * Hands an address to the system, which passes it to the editor: the same as clicking the link. No shell: the address
+ * is one argument, and installUri() built it from a checked mod id and version.
+ */
+function openUri(uri: string): Promise<void> {
+  const [command, argv] = process.platform === 'win32' ? ['explorer.exe', [uri]] : process.platform === 'darwin' ? ['open', [uri]] : ['xdg-open', [uri]];
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, argv as string[], { detached: true, stdio: 'ignore', windowsHide: true });
+    child.once('error', (err) => reject(new Error(`This PC could not hand the install to ${editor}: ${err.message}`)));
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
 }
 const version = (() => {
   try {
@@ -91,6 +115,28 @@ server.registerTool(
     annotations: reads,
   },
   (q) => run(() => installPlan(api, q))(),
+);
+
+server.registerTool(
+  'mods_install',
+  {
+    title: 'Install a mod',
+    description: 'Asks the EDGEmods extension in VS Code to install an EDGEmods mod with its requirements through EDGEdeck. VS Code shows the player what it brings and asks them to confirm; nothing is downloaded or installed until they do, and nothing goes into the game until they deploy. The answer shows in VS Code, not here. Gives back the same plan as mods_plan. Use it only when the player asked for the mod.',
+    inputSchema: {
+      id,
+      version: z.string().max(64).optional().describe('A version from mods_info; the newest when left out'),
+    },
+    // It changes nothing by itself: the player confirms in VS Code.
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  async (q) => {
+    try {
+      const r = await requestInstall(api, q, editor, openUri);
+      return { ...(r.sent ? {} : { isError: true }), content: [{ type: 'text' as const, text: `${r.text}\n\n${JSON.stringify(r.data, null, 2)}` }] };
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] };
+    }
+  },
 );
 
 void server.connect(new StdioServerTransport());

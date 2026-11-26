@@ -1,5 +1,6 @@
 // Manual download: a mod's files saved to a folder the person picks, each checked against the SHA-256 EDGEmods
-// recorded when it checked the release. Installing them into EDGEdeck is R4c.
+// recorded when it checked the release. Installing through EDGEdeck is src/install.ts; this is for installing by hand,
+// or without EDGEdeck.
 
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';

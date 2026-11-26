@@ -3,15 +3,19 @@
 // sends every link and button here, where pageLink() decides what it may do.
 
 import * as vscode from 'vscode';
-import { ApiError, MOD_TABS, pageLink, REPORT_REASONS, type Api, type ModTab, type ReportReason } from './core/index.js';
+import { compareVersions } from '@edgemodders/edgemods-format';
+import { ApiError, installLink, MOD_TABS, pageLink, REPORT_REASONS, type Api, type ModTab, type ReportReason } from './core/index.js';
+import type { DeckState } from './install.js';
 import { esc, shell, webviewOptions } from './webview.js';
 
 export interface ModHost {
   api(): Api;
   signedIn(): Promise<boolean>;
   signIn(): Promise<unknown>;
-  /** An edgemods: link from the page's Install button. */
+  /** An edgemods: link from the page's Mod manager button, or the toolbar's Install. */
   install(url: string): Promise<void>;
+  /** What EDGEdeck has of the mod; undefined while EDGEdeck is not running. */
+  deckState(id: string): DeckState | undefined;
   download(mod: string, version: string, file?: string): Promise<unknown>;
   browse(filters: { q: string; type: string[]; tag: string[] }): Promise<void>;
   log(line: string): void;
@@ -66,10 +70,23 @@ export class ModPanels implements vscode.WebviewPanelSerializer<State> {
     void this.render(panel, id, state.tab);
   }
 
+  /** The toolbar's words and button for what EDGEdeck has, against the newest release on EDGEmods. */
+  private deckBar(id: string, newest?: string): string {
+    const s = this.host.deckState(id);
+    if (!s || !newest) return '';
+    const button = (label: string): string => `<button class="btn sm go" type="button" data-act="install" data-version="${esc(newest)}">${esc(label)}</button>`;
+    if (s.on) {
+      const where = s.on.deployed ? 'in the game' : 'not deployed yet';
+      const older = compareVersions(newest, s.on.version) > 0;
+      return `<span class="dim">In EDGEdeck: ${esc(s.on.version)}, ${where}${older ? ` · ${esc(newest)} is out` : ''}</span>${older ? button(`Update to ${newest}`) : ''}`;
+    }
+    return s.off.length ? `<span class="dim">In EDGEdeck, turned off (${esc(s.off.map((m) => m.version).join(', '))})</span>${button('Install')}` : button('Install');
+  }
+
   private async render(panel: vscode.WebviewPanel, id: string, tab?: ModTab, reported?: 'sent' | 'already'): Promise<void> {
     const api = this.host.api();
-    const toolbar = (name: string): string => `<div class="vsbar wrap"><span class="dim mono">${esc(name)}</span>
-      <span class="grow"></span><button class="btn sm" type="button" data-act="refresh">Refresh</button><button class="btn sm" type="button" data-act="site">Open on ${esc(new URL(api.site).host)}</button></div>`;
+    const toolbar = (name: string, newest?: string): string => `<div class="vsbar wrap"><span class="dim mono">${esc(name)}</span>
+      <span class="grow"></span>${this.deckBar(id, newest)}<button class="btn sm" type="button" data-act="refresh">Refresh</button><button class="btn sm" type="button" data-act="site">Open on ${esc(new URL(api.site).host)}</button></div>`;
     panel.webview.html = shell(panel.webview, this.extensionUri, api.site, { title: id, script: 'mod.js', bodyClass: 'modtab', data: { mod: id }, body: `${toolbar('EDGEmods')}<p class="wrap dim loading">Loading…</p>` });
     try {
       const page = await api.modPage(id, tab, reported);
@@ -79,7 +96,7 @@ export class ModPanels implements vscode.WebviewPanelSerializer<State> {
         // A tab only when one was asked for; otherwise the page's script keeps the one shown last.
         title: page.name, script: 'mod.js', bodyClass: 'modtab', data: { mod: page.id, ...(tab ? { tab: page.tab } : {}) },
         // The site built and cleaned this HTML: its words are escaped and the README sanitized (packages/server).
-        body: `${toolbar(`EDGEmods · ${page.name} ${page.version}`)}${page.html}`,
+        body: `${toolbar(`EDGEmods · ${page.name} ${page.version}`, page.version)}${page.html}`,
       });
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
@@ -101,6 +118,8 @@ export class ModPanels implements vscode.WebviewPanelSerializer<State> {
       case 'act':
         if (msg.act === 'refresh') await this.render(panel, id);
         if (msg.act === 'site') await vscode.env.openExternal(vscode.Uri.parse(api.page(`/mods/${encodeURIComponent(id)}`)));
+        // The version the toolbar named; the install checks it like any link.
+        if (msg.act === 'install' && typeof msg.version === 'string') await this.host.install(installLink(id, msg.version));
         return;
       case 'link':
         if (typeof msg.href === 'string') await this.follow(id, msg.href);

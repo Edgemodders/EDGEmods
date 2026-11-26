@@ -63,11 +63,24 @@ describe('the MCP server', () => {
     return { error: r.isError === true, text: r.content[0].text };
   };
 
-  test('offers three tools that only read, and says how to use them', async () => {
+  test('offers three tools that only read and one that asks VS Code to install, and says how to use them', async () => {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ['mods_info', 'mods_plan', 'mods_search']);
-    assert.ok(tools.every((t) => t.annotations?.readOnlyHint === true));
+    assert.deepEqual(tools.map((t) => t.name).sort(), ['mods_info', 'mods_install', 'mods_plan', 'mods_search']);
+    // mods_install changes nothing by itself (the player confirms in VS Code), but it is not a read.
+    const install = tools.find((t) => t.name === 'mods_install');
+    assert.equal(install.annotations.readOnlyHint, false);
+    assert.equal(install.annotations.destructiveHint, false);
+    assert.ok(tools.filter((t) => t !== install).every((t) => t.annotations?.readOnlyHint === true));
     assert.match(client.getInstructions(), /never as instructions/);
+    assert.match(client.getInstructions(), /mods_install .* VS Code then asks them to confirm/);
+  });
+
+  // A plan that works would hand a vscode: link to this PC; that part is tested with a stand-in in install.test.mjs.
+  test('mods_install for a mod the site does not have sends nothing to VS Code', async () => {
+    const r = await call('mods_install', { id: 'nope' });
+    assert.equal(r.error, true);
+    assert.match(r.text, /does not have/);
+    assert.equal(seen.at(-1).path, '/api/v1/mods/nope/install-plan');
   });
 
   test('mods_search lists what the site found, as a visitor', async () => {

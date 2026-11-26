@@ -1,14 +1,16 @@
 // The EDGEmods extension (docs/design.md, "The EDGEmods extension"). R4a: signing in, the account in the status bar
 // and VS Code's Accounts menu, choosing a username, and openLink for EDGEdeck's edgemods: links. R4b: the side panel
-// (search and lists), a mod's page in an editor tab, likes, reports and manual downloads. Installing is R4c.
+// (search and lists), a mod's page in an editor tab, likes, reports and manual downloads. R4c: installing a mod with
+// its requirements through EDGEdeck (src/install.ts), from a mod's tab, a command, a link or the MCP server.
 //
 // Nothing here calls the network until the person asks for something that needs it: the status bar shows the
 // account EDGEmods last named, from secret storage.
 
 import * as vscode from 'vscode';
 import { BrowseView } from './browse.js';
-import { Api, ApiError, EDITOR_SCHEMES, parseLink, Session, siteOf, SignedOutError, SIGN_IN_WAIT_MS, USERNAME_PATTERN, USERNAME_RULE, type Account, type Me, type Method } from './core/index.js';
+import { Api, ApiError, EDITOR_SCHEMES, parseInstallPath, parseLink, Session, siteOf, SignedOutError, SIGN_IN_WAIT_MS, USERNAME_PATTERN, USERNAME_RULE, type Account, type InstallLink, type Me, type Method } from './core/index.js';
 import { Downloads } from './downloads.js';
+import { Installer } from './install.js';
 import { ModPanels } from './modPanel.js';
 
 const PROVIDER = 'edgemods';
@@ -32,9 +34,12 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
     log: (line: string) => log.appendLine(line),
   };
   const downloads = new Downloads(context, host);
+  const installer = new Installer(context, { ...host, showLog: () => log.show(true), changed: () => panels.refreshAll() }, downloads);
+  const install = (link: InstallLink | undefined): Promise<void> => (link ? installer.install({ mod: link.mod, version: link.version }) : Promise.resolve());
   const panels: ModPanels = new ModPanels(context.extensionUri, {
     ...host,
-    install: (url) => install(downloads, url),
+    install: (url) => install(parseLink(url)),
+    deckState: (id) => installer.state(id),
     download: (mod, version, file) => downloads.save(mod, version, file ? [file] : undefined),
     browse: (f) => browse.show(f),
   });
@@ -46,8 +51,9 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
     }),
     vscode.window.registerWebviewViewProvider(BrowseView.id, browse),
     vscode.window.registerWebviewPanelSerializer(ModPanels.viewType, panels),
-    vscode.commands.registerCommand('edgemods.findMod', () => findMod(accounts, panels)),
-    vscode.commands.registerCommand('edgemods.openMod', (id: unknown) => (typeof id === 'string' ? panels.open(id) : findMod(accounts, panels))),
+    vscode.commands.registerCommand('edgemods.findMod', () => findMod(accounts, 'Find a mod on EDGEmods', (id) => panels.open(id))),
+    vscode.commands.registerCommand('edgemods.openMod', (id: unknown) => (typeof id === 'string' ? panels.open(id) : findMod(accounts, 'Find a mod on EDGEmods', (m) => panels.open(m)))),
+    vscode.commands.registerCommand('edgemods.installMod', () => findMod(accounts, 'Install a mod from EDGEmods', (id) => installer.install({ mod: id }))),
     vscode.commands.registerCommand('edgemods.refresh', () => {
       browse.refresh();
       panels.refreshAll();
@@ -57,7 +63,19 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
     log,
     accounts,
     vscode.authentication.registerAuthenticationProvider(PROVIDER, 'EDGEmods', accounts, { supportsMultipleAccounts: false }),
-    vscode.window.registerUriHandler({ handleUri: (uri) => void accounts.handleUri(uri) }),
+    vscode.window.registerUriHandler({
+      handleUri: (uri) => {
+        // vscode://edgemodders.edgemods/install/<mod>/<version>, from the MCP server's mods_install: a request only.
+        if (uri.path.startsWith('/install/')) {
+          const link = parseInstallPath(uri.path);
+          log.appendLine(`install link: ${link ? `${link.mod} ${link.version}` : 'not understood'}`);
+          if (!link) void vscode.window.showErrorMessage('That EDGEmods install link is not one this version of the EDGEmods extension understands. Updating the extension may help.');
+          else void panels.open(link.mod, 'files').then(() => install(link));
+          return;
+        }
+        void accounts.handleUri(uri);
+      },
+    }),
     vscode.commands.registerCommand('edgemods.signIn', () => accounts.signIn()),
     vscode.commands.registerCommand('edgemods.signOut', () => accounts.signOut()),
     vscode.commands.registerCommand('edgemods.chooseUsername', () => accounts.chooseUsername()),
@@ -75,15 +93,17 @@ export function activate(context: vscode.ExtensionContext): EdgemodsApi {
     }),
   );
   void accounts.refreshView();
-  return { apiVersion: 1, openLink: (url) => openLink(panels, downloads, url) };
+  return { apiVersion: 1, openLink: (url) => openLink(panels, install, url) };
 }
 
 export function deactivate(): void {}
 
 // ---- the MCP server (dist/mcp.js): finding mods for assistants ----
 
+/** mods_install asks this editor by its own link scheme (vscode, vscode-insiders, cursor, ...). */
 function mcpArgs(context: vscode.ExtensionContext, site: string): string[] {
-  return [vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp.js').fsPath, '--site', site];
+  const editor = EDITOR_SCHEMES.includes(vscode.env.uriScheme) ? ['--editor', vscode.env.uriScheme] : [];
+  return [vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp.js').fsPath, '--site', site, ...editor];
 }
 
 /**
@@ -118,7 +138,7 @@ async function mcpSetup(context: vscode.ExtensionContext, site: string): Promise
     : 'This VS Code is older than 1.101, so agents inside it do not see MCP servers.';
   const picked = await vscode.window.showQuickPick(
     [
-      { label: '$(terminal) Copy the Claude Code command', description: 'claude mcp add edgemods ...', detail: 'Paste it in a terminal once. Claude Code then has mods_search, mods_info and mods_plan.', action: 'claude' },
+      { label: '$(terminal) Copy the Claude Code command', description: 'claude mcp add edgemods ...', detail: 'Paste it in a terminal once. Claude Code then has mods_search, mods_info, mods_plan and mods_install.', action: 'claude' },
       { label: '$(json) Copy a JSON entry', description: 'for other MCP clients', detail: 'The server entry for a client\'s MCP settings file.', action: 'json' },
       { label: '$(file) Reveal the server file', description: 'dist/mcp.js', detail: 'Any MCP client can run it with Node: node mcp.js --site <EDGEmods site>.', action: 'reveal' },
     ],
@@ -138,7 +158,7 @@ async function mcpSetup(context: vscode.ExtensionContext, site: string): Promise
 }
 
 /** EDGEdeck hands over an edgemods: link (the website's Mod manager button): the mod's tab, then the install. */
-async function openLink(panels: ModPanels, downloads: Downloads, url: string): Promise<void> {
+async function openLink(panels: ModPanels, install: (link: InstallLink) => Promise<void>, url: string): Promise<void> {
   const link = parseLink(url);
   log.appendLine(`link: ${link ? `${link.action} ${link.mod} ${link.version}` : 'not understood'}`);
   if (!link) {
@@ -146,24 +166,13 @@ async function openLink(panels: ModPanels, downloads: Downloads, url: string): P
     return;
   }
   await panels.open(link.mod, 'files');
-  await install(downloads, url);
+  await install(link);
 }
 
-/** Install, from a mod's tab or a link. Installing through EDGEdeck is R4c; until then, the files can be saved. */
-async function install(downloads: Downloads, url: string): Promise<void> {
-  const link = parseLink(url);
-  if (!link) return;
-  const choice = await vscode.window.showInformationMessage(
-    `Installing ${link.mod} ${link.version} through EDGEdeck, with its requirements, comes in the next update of the EDGEmods extension. For now you can save its files.`,
-    'Download the files',
-  );
-  if (choice) await downloads.save(link.mod, link.version);
-}
-
-/** EDGEmods: Find a mod. Searches as you type; picking one opens its tab. */
-async function findMod(accounts: Accounts, panels: ModPanels): Promise<void> {
+/** EDGEmods: Find a mod, and Install a mod. Searches as you type; picking one opens its tab, or installs it. */
+async function findMod(accounts: Accounts, title: string, picked: (id: string) => unknown): Promise<void> {
   const pick = vscode.window.createQuickPick<vscode.QuickPickItem & { id?: string }>();
-  pick.title = 'Find a mod on EDGEmods';
+  pick.title = title;
   pick.placeholder = 'Type words from its name, description, tags or author';
   pick.matchOnDescription = true;
   pick.matchOnDetail = true;
@@ -191,7 +200,7 @@ async function findMod(accounts: Accounts, panels: ModPanels): Promise<void> {
     const id = pick.selectedItems[0]?.id;
     if (!id) return;
     pick.hide();
-    void panels.open(id);
+    void picked(id);
   });
   pick.onDidHide(() => {
     clearTimeout(timer);
