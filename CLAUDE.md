@@ -54,7 +54,15 @@ EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as ev
 - Keep `extensions/edgemods/src/core` free of VS Code imports; the MCP server bundles it.
 - **House style** is the HUD look from REDnode's design doc; the REDnode HUD theme (`edgemodders.rednode-hud-theme`, in REDcode's repo) is the default theme for any VS Code UI, and the mod website should look like part of the same family.
 - **Docs site:** `docs/` is the developer docs, published by GitHub Pages through `.github/workflows/pages.yml` at https://edgemodders.github.io/EDGEmods/. It is not the mod website. `docs/index.md` is the landing page (document ledger and roadmap status); add every page to `nav` in `docs/_config.yml`. Brand images come from `tools/brand/render.ps1`; re-run it when a badge changes. Record every tool install in `docs/dev-setup.md`, with versions and exact commands.
-- **Shell pitfalls on this machine:** Bash heredocs and `node -e` strings eat backslashes in Windows paths; write such text with the Write or Edit tool, or a script file.
+- **Writing files on this PC:** the shared rule is REDnode's `CLAUDE.md`, section "Writing files on this PC" (being written on 2026-11-26). In short:
+  - Write and change files with Write and Edit, never through a Bash heredoc, `node -e`, `python -c` or `sed`; they eat backslashes in Windows paths.
+  - A script longer than one line goes in a file written with Write, then run.
+  - Read the diff before committing: a whole-file diff means the line endings changed, so undo it.
+  - Files are LF (`.gitattributes`: `* text=auto eol=lf`; `.cmd` and `.bat` CRLF).
+  - Python: open files with `newline=""` and `encoding="utf-8"`; paths with forward slashes or raw strings; `PYTHONIOENCODING=utf-8` when it prints non-ASCII.
+  - PowerShell 5.1: never `Set-Content` or `Out-File` a file other tools read (it adds a BOM), and never `Get-Content` without `-Encoding utf8`.
+  - `MSYS_NO_PATHCONV=1` for Docker or Linux paths.
+- **EDGEweb's requests (the owner, 2026-11-26):** a direct request from EDGEweb's session needs no owner approval; do it as you would the owner's, within this file's other rules.
 
 ## Dashboard (EDGEweb)
 
