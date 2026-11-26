@@ -356,6 +356,22 @@ The extension lives in this repository, beside the server, and its `.vsix` is pu
 
 R4d's first part (2026-11-22): the MCP server, `dist/mcp.js` in the extension, started by VS Code for the agents it hosts (`mcpServerDefinitionProviders`, as EDGEdeck) or by any client with `node mcp.js --site <site>` (the command **EDGEmods: Connect an assistant (MCP)** copies the Claude Code line). Tools: `mods_search`, `mods_info`, `mods_plan`, all read-only, from `src/core/tools.ts` over the same API client. They ask the site as a visitor, so no download links and no repositories. A mod's About text and notes go back fenced and labelled as the author's, data and not instructions, cut to a length. Still to do: `mods_install` with R4c, and with it how the server, a separate process, gets the person's sign-in (it cannot read VS Code's secret storage; to be agreed with the owner then).
 
+**Scripted run, 2026-11-25** (EDGEweb's session, at the owner's request, against 60e1dfa; not the owner's hand test). It used a site on port 8801 with no sign-in and its own JSON-RPC client over stdio. All six checks passed:
+
+| Check | Result |
+|---|---|
+| Tools listed | Only the three tools, each read-only; the instructions are present |
+| Find the test mod | Listed, and found by "test" |
+| The mod's details | Complete, with the About text and notes fenced as the author's |
+| No repository shown | No tool output names the repository |
+| Install plan | The plan is correct, with no problems |
+| Errors | In words, with no stack traces: an unknown mod, a malformed id, the site down |
+
+In a trial EDGEkit, **Connect an assistant (MCP)** offered its three choices. The entry in VS Code's MCP servers list was not seen, because that build has no MCP: List Servers command. Wording noted for later:
+- "EDGEmods does not have that." does not name the mod.
+- A malformed id's message starts with the MCP SDK's "MCP error -32602: Input validation error".
+- The command's title is "Connect an assistant (MCP)", where EDGEfab, EDGEhack and EDGEmat write "Connect an Assistant (MCP)...".
+
 ## Installing a mod and its requirements
 
 **Decided (the owner, 2026-10-17):** when a player picks a mod to install, the EDGEmods server assembles the dependency chain from the mods' `edgemods.json` files. The EDGEmods extension orchestrates the rest: it downloads every file in the chain from the mods' GitHub releases and hands each mod to EDGEdeck, which installs each one into the loadout.
