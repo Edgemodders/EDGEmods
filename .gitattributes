@@ -1,3 +1,8 @@
+# Every text file is LF on every platform (the shared rule on this PC: scripted edits miss text in CRLF files).
+* text=auto eol=lf
+# Windows command scripts stay CRLF: cmd.exe misreads labels in LF ones.
+*.cmd text eol=crlf
+*.bat text eol=crlf
 # The deploy files run on Linux: LF line endings whatever the checkout's platform (a CRLF shell script fails there).
 deploy/** text eol=lf
 *.sh text eol=lf
