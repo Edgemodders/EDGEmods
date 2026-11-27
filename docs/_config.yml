@@ -37,6 +37,8 @@ nav:
     url: /dev-setup.html
   - title: Links
     url: /links.html
+  - title: In the game
+    url: /rednode.html
   - title: Auth0
     url: /auth0-setup.html
   - title: Deploy

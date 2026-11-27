@@ -1,0 +1,18 @@
+{
+  "id": "edgemods",
+  "name": "EDGEmods",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "Find REDnode mods on EDGEmods and install them while you play: windows, HUD widgets and Node mods start a moment after Install, without restarting the game.",
+  "entry": "index.html",
+  "main": "mod.mjs",
+  "kind": "window",
+  "width": 960,
+  "height": 640,
+  "anchor": "center",
+  "x": 0,
+  "y": 0,
+  "permissions": ["admin"],
+  "requires": { "rednode": ">=0.66.0" },
+  "open": false
+}

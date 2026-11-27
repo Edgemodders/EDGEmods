@@ -1,0 +1,11 @@
+{
+  "name": "edgemods-rednode",
+  "private": true,
+  "version": "0.1.0",
+  "description": "EDGEmods for REDnode: the in-game browser for REDnode mods on EDGEmods, as a REDnode app pack. No dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

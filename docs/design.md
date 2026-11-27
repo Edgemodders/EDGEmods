@@ -456,6 +456,27 @@ In a trial EDGEkit, **Connect an assistant (MCP)** offered its three choices. Th
   - The server's cards have `inGame`, and `GET /api/v1/mods?ingame=1` lists only those mods.
   - Each plan file has `rednode`, each plan mod `inGame`, and the plan itself `inGame`.
   - The mod page lists the packages and says when the mod installs from the game.
+- **RN3, the server's part, 2026-11-27:** `EDGEMODS_AUTH0_REDNODE_CLIENT_ID` is a second Native application. Its tokens are accepted like the extension's, and `GET /api/v1/auth` gives it as `device.clientId`. The owner's part is [Auth0 setup](auth0-setup.html), step 10.
+- **RN4, 2026-11-27:** the app, in `rednode/apps/edgemods/` (the player's guide is [EDGEmods for REDnode](rednode.html)). It has no dependencies.
+  - `mod.mjs`, the Node mod, does everything over the network and on disk:
+    - `lib/site.mjs` is the API client. The token goes to the site only.
+    - `lib/signin.mjs` is the device flow, with the tokens in REDnode's `secrets`.
+    - `lib/install.mjs` does the plan, what is already there, the downloads checked against their SHA-256, the unpacking (`lib/zip.mjs`, the merge checks' path rules), the move into `Documents\REDnode\EDGEmods`, all or nothing, updates and removing.
+  - `index.html` and `app.js`, the page, do the admin calls (`tasks.projectsFolder("EDGEmods")`, `tasks.setOpen`) and draw everything with `textContent`.
+  - The two talk over `channel`.
+  - `rednode/test/` runs the libraries against a stand-in site and a stand-in Auth0.
+  - `rednode/pack.json` is still `unreleased`.
+
+**RN4 hand test (the owner's, not run yet).** It needs:
+- REDnode 0.66 or newer;
+- the website on this PC, with step 10 done;
+- a REDnode test mod on the registry. A new public test repository needs the owner's yes first.
+
+Steps:
+1. Copy `rednode/apps/edgemods` into the game's `red4ext/plugins/REDnode/apps/`. In the Mod Manager, switch on **EDGEmods** and allow **admin**. The window lists the REDnode test mod.
+2. **Account**: set the site to `http://localhost:8800`, **Sign in**, enter the code on the PC. The window says who is signed in.
+3. Open the test mod and **Install**. The question names its packages. Seconds later the test mod's window or widget is running, and `Documents\REDnode\EDGEmods\<package>` exists.
+4. **Installed** › **Remove**: the package stops and its folder is gone.
 
 **In slices:**
 

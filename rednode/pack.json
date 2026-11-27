@@ -1,0 +1,10 @@
+{
+  "id": "edgemods",
+  "name": "EDGEmods for REDnode",
+  "version": "0.1.0",
+  "rednode": ">=0.66.0",
+  "summary": "Find REDnode mods on EDGEmods and install them while you play: windows, HUD widgets and Node mods that start a moment after Install, without restarting the game.",
+  "guide": "https://edgemodders.github.io/EDGEmods/rednode.html",
+  "apps": ["edgemods"],
+  "unreleased": true
+}

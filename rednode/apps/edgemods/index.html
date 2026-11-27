@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EDGEmods</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<script type="importmap">{ "imports": { "rednode": "rednode://sdk/index.js" } }</script>
+<style>
+  html, body { margin: 0; width: 960px; height: 640px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 0; }
+  [hidden] { display: none !important; }
+  .body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: flex-end; gap: 8px; }
+  .bar rn-input { flex: 1; }
+  .spacer { flex: 1; }
+  .note { font-size: 13px; color: var(--rn-dim); }
+  .note.warn { color: var(--rn-accent-2); }
+  .note.bad { color: var(--rn-danger); }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .card { border: 1px solid var(--rn-line); background: var(--rn-panel); cursor: pointer; display: flex; flex-direction: column; min-width: 0; }
+  .card:hover { border-color: var(--rn-accent); }
+  .card img, .detail img { width: 100%; aspect-ratio: 2 / 1; object-fit: cover; display: block; background: var(--rn-panel-2); }
+  .card .t { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .name { font: 600 14px var(--rn-display); color: var(--rn-fg); }
+  .meta { font: 11px var(--rn-mono); letter-spacing: .05em; color: var(--rn-dim); }
+  .sum { font-size: 12px; color: var(--rn-fg); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .tag { font: 600 10px var(--rn-mono); letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border: 1px solid var(--rn-line); color: var(--rn-dim); margin-right: 4px; }
+  .tag.y { color: var(--rn-on-accent); background: var(--rn-accent); border-color: var(--rn-accent); }
+  .tag.r { color: var(--rn-danger); border-color: var(--rn-danger); }
+  .detail { display: grid; grid-template-columns: 320px 1fr; gap: 14px; }
+  .about { white-space: pre-wrap; font-size: 13px; line-height: 1.45; color: var(--rn-fg); }
+  .label { font: 600 10px var(--rn-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--rn-dim); margin: 10px 0 4px; }
+  ul.plain { margin: 0; padding-left: 16px; font-size: 13px; }
+  .ask { border: 1px solid var(--rn-accent); background: var(--rn-panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .ask pre { margin: 0; white-space: pre-wrap; font: 12px var(--rn-mono); color: var(--rn-fg); max-height: 220px; overflow-y: auto; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .code { font: 600 28px var(--rn-mono); letter-spacing: .2em; color: var(--rn-accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--rn-line); }
+</style>
+</head>
+<body>
+<rn-window title="EDGEmods" draggable closable>
+  <div class="body">
+    <rn-tabs id="tabs"><rn-tab active>Browse</rn-tab><rn-tab>Installed</rn-tab><rn-tab>Account</rn-tab></rn-tabs>
+    <p id="admin" class="note warn" hidden></p>
+    <p id="message" class="note" hidden></p>
+    <div id="asking" class="ask" hidden></div>
+    <rn-progress id="progress" hidden></rn-progress>
+
+    <section id="browse" class="body">
+      <div class="bar">
+        <rn-input id="q" label="Search REDnode mods" placeholder="radio, map, HUD..." clearable></rn-input>
+        <rn-select id="sort" label="Sort" value="updated">
+          <rn-option value="updated">Updated</rn-option><rn-option value="new">New</rn-option>
+          <rn-option value="downloads">Most downloaded</rn-option><rn-option value="likes">Most liked</rn-option><rn-option value="name">Name</rn-option>
+        </rn-select>
+      </div>
+      <p id="count" class="note"></p>
+      <div class="scroll"><div id="grid" class="grid"></div></div>
+      <div class="row"><rn-button id="prev" variant="ghost" disabled>Previous</rn-button><span id="pageno" class="note"></span><rn-button id="next" variant="ghost" disabled>Next</rn-button></div>
+    </section>
+
+    <section id="mod" class="body" hidden>
+      <div class="row"><rn-button id="back" variant="ghost">Back</rn-button><span class="spacer"></span><span id="modbtns" class="row"></span></div>
+      <div class="scroll"><div id="detail" class="detail"></div></div>
+    </section>
+
+    <section id="installed" class="body" hidden>
+      <p class="note">Mods EDGEmods installed in the game. They live in Documents\REDnode\EDGEmods, not in the game folder, so EDGEdeck's mods are not touched.</p>
+      <div class="scroll"><table><tbody id="list"></tbody></table></div>
+    </section>
+
+    <section id="account" class="body" hidden>
+      <p id="who" class="note"></p>
+      <div class="row"><rn-button id="signin">Sign in</rn-button><rn-button id="signout" variant="ghost" hidden>Sign out</rn-button></div>
+      <div id="codebox" class="ask" hidden>
+        <span class="note">On your phone or PC, open</span><b id="uri"></b>
+        <span class="note">and enter this code:</span><span id="code" class="code"></span>
+        <div class="row"><rn-button id="cancelsignin" variant="ghost">Cancel</rn-button></div>
+      </div>
+      <p class="label">EDGEmods site</p>
+      <div class="bar"><rn-input id="site" label="Address (leave empty for edgemods.ai)" placeholder="https://edgemods.ai"></rn-input><rn-button id="setsite" variant="ghost">Use</rn-button></div>
+      <p class="note">Browsing needs no account. Installing downloads the files, which needs a free EDGEmods account, the same one as on the website and in VS Code.</p>
+    </section>
+  </div>
+</rn-window>
+<script type="module" src="app.js"></script>
+</body>
+</html>

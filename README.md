@@ -28,6 +28,7 @@ The EDGEmods extension for VS Code (being built: phases R4 and R5; it signs in, 
 | `packages/indexer` | Builds the website's database (`index.db`) from the registry and the mods' repositories |
 | `packages/server` | The mod website: pages, search, mod pages, accounts, likes, downloads, admin, install plans (R3b to R3e) |
 | `extensions/edgemods` | The EDGEmods extension for VS Code and its MCP server: sign-in, browse, install through EDGEdeck (R4) |
+| `rednode/` | EDGEmods for REDnode, a REDnode app pack: browse REDnode mods in the game and install them while you play (RN4, not released) |
 | `registry/` | The registry: one small file per mod |
 | `examples/example-mod` | An example mod repository that passes the checks |
 | `docs/` | Developer documentation: the design, the format, the registry, the website prototype (`docs/prototype/`), research, dev setup |
