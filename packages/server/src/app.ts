@@ -991,7 +991,7 @@ function parseQuery(req: Request, adult: boolean): Query {
   const wanted = String(req.query.sort ?? '');
   const sort = (SORTS as readonly string[]).includes(wanted) && (wanted !== 'relevance' || q.trim()) ? (wanted as Sort) : defaultSort({ q });
   const page = Math.min(1000, Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1));
-  return { q, type: list(req.query.type, 13, 40), tag: list(req.query.tag, 10, 40), needs: list(req.query.needs, 10, 100), nocode: req.query.nocode === '1', sort, page, adult };
+  return { q, type: list(req.query.type, 13, 40), tag: list(req.query.tag, 10, 40), needs: list(req.query.needs, 10, 100), nocode: req.query.nocode === '1', ingame: req.query.ingame === '1', sort, page, adult };
 }
 
 /** A repeated query parameter as a list of distinct strings, bounded in count and length. */

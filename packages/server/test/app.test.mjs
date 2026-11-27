@@ -85,6 +85,12 @@ describe('as a visitor', () => {
     assert.deepEqual(anyType.cards.map((c) => c.id).sort(), ['core-lib', 'pinned-hud']);
     const nocode = await t.json('/api/v1/mods?nocode=1');
     assert.ok(!nocode.cards.some((c) => c.id === 'core-lib'));
+    const ingame = await t.json('/api/v1/mods?ingame=1');
+    assert.deepEqual(ingame.cards.map((c) => [c.id, c.inGame]), [['pinned-hud', true]], 'only REDnode-only releases');
+    assert.equal(all.cards.find((c) => c.id === 'core-lib').inGame, false);
+    const page = await (await t.get('/mods/pinned-hud')).text();
+    assert.match(page, /Pinned HUD <span class="dim">· a HUD widget<\/span>/);
+    assert.match(page, /Installs from the game too/);
     assert.equal(ftsQuery('a"b OR c*'), '"a"* "b"* "OR"* "c"*');
   });
 
@@ -92,6 +98,9 @@ describe('as a visitor', () => {
     const plan = await t.json('/api/v1/mods/pinned-hud/install-plan');
     assert.deepEqual(plan.mods.map((m) => `${m.id}@${m.version}`), ['core-lib@1.2.0', 'pinned-hud@1.0.0']);
     assert.deepEqual(plan.problems, []);
+    assert.deepEqual(plan.mods.map((m) => m.inGame), [false, true]);
+    assert.equal(plan.inGame, false, 'core-lib needs EDGEdeck, so the whole plan does');
+    assert.equal(plan.mods[1].files[0].rednode.packages[0].id, 'pinned-hud');
     const missing = await t.get('/api/v1/mods/unchecked/install-plan');
     assert.equal(missing.status, 404);
   });
@@ -106,7 +115,7 @@ describe('as a visitor', () => {
     const versions = await t.text('/mods/core-lib?tab=versions');
     assert.match(versions, /Notes for 1.2.0/);
     assert.ok(!versions.includes('Notes for 1.3.0'), 'the failed release is not listed');
-    assert.match(await t.text('/mods/core-lib'), /game plugin or program/);
+    assert.match(await t.text('/mods/core-lib'), /game plugin, a program or a REDnode Node mod/);
   });
 
   test('images: only paths in the index, checked as images, from the cache after the first time', async () => {

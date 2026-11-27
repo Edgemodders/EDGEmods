@@ -7,7 +7,7 @@ export const TYPE_LABELS: Record<string, string> = {
 
 export const KIND_LABELS: Record<string, string> = {
   plugin: 'Game plugins (.dll, .asi)', program: 'Programs (.exe and similar)', redscript: 'redscript scripts', cet: 'Cyber Engine Tweaks scripts',
-  archive: 'Game archives', tweak: 'Tweaks', audio: 'Sound files', 'nested-archive': 'Archives inside the download', other: 'Other files',
+  archive: 'Game archives', tweak: 'Tweaks', audio: 'Sound files', 'nested-archive': 'Archives inside the download', rednode: 'REDnode package files', other: 'Other files',
 };
 
 export const typeLabel = (t: string): string => TYPE_LABELS[t] ?? t;

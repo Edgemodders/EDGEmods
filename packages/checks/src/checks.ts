@@ -20,8 +20,8 @@ import {
   type ModRequirement,
   type PlacedRequirement,
 } from '@edgemodders/edgemods-format';
-import { ArchiveError, listArchive, sha256 } from './archive.js';
-import { summarize, unsafePaths, type ContentSummary } from './contents.js';
+import { ArchiveError, listArchive, readSmallFiles, sha256 } from './archive.js';
+import { rednodeContents, rednodeManifests, summarize, unsafePaths, withRednode, type ContentSummary } from './contents.js';
 import { entryPath, parseEntry, parseEntryPath, repoFromUrl, REGISTRY_DIR, type EntryPath, type RegistryEntry } from './entry.js';
 import type { GitHub, PullRequest, Release, Repo } from './github.js';
 import { ScannerUnavailable, type Scanner } from './scan.js';
@@ -343,7 +343,13 @@ async function checkDownloads(s: Step, state: State, o: CheckOptions): Promise<v
         const locked = entries.filter((e) => e.encrypted);
         if (locked.length) s.fail(`"${asset.name}" has ${locked.length} file(s) protected with a password, so EDGEmods cannot check them. Upload it without a password.`);
 
-        const contents = summarize(entries);
+        const manifests = await readSmallFiles(file, asset.name, rednodeManifests(entries));
+        const rednode = rednodeContents(entries, manifests);
+        for (const problem of rednode?.problems ?? []) s.fail(`"${asset.name}": ${problem} REDnode would not load that package.`);
+        const contents = withRednode(summarize(entries), entries, rednode);
+        if (rednode?.packages.length) {
+          s.notes.push(`${asset.name}: REDnode package(s) ${rednode.packages.map((k) => k.id).join(', ')}${rednode.only ? ', REDnode only, so it can install from the game' : ''}.`);
+        }
         const report: DownloadReport = { name: asset.name, size: asset.size, sha256: hash, contents };
         try {
           const scan = await o.scanner.scan(file);
@@ -363,6 +369,9 @@ async function checkDownloads(s: Step, state: State, o: CheckOptions): Promise<v
     }
   } finally {
     if (!o.workDir) await rm(work, { recursive: true, force: true });
+  }
+  if (manifest.type === 'rednode' && state.downloads.length === assets.length && !state.downloads.some((d) => d.contents.rednode?.packages.length)) {
+    s.fail('The mod\'s type is REDnode, but no download has a rednode-app.json. Pick another type, or add the REDnode package.', 'type');
   }
 }
 

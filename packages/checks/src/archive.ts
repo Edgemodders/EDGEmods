@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { promisify } from 'node:util';
+import { inflateRawSync } from 'node:zlib';
 
 const run = promisify(execFile);
 
@@ -37,6 +38,61 @@ const CENTRAL = 0x02014b50;
 const MAX_ENTRIES = 200000;
 
 export async function listZip(file: string): Promise<ArchiveEntry[]> {
+  return (await zipRecords(file)).map(({ path, size, encrypted }) => ({ path, size, encrypted }));
+}
+
+/** A zip entry with where its data is, for reading a small file out (readSmallFiles). */
+interface ZipRecord extends ArchiveEntry {
+  method: number;
+  compressedSize: number;
+  offset: number;
+}
+
+const LOCAL = 0x04034b50;
+
+/**
+ * Reads a few small files out of a download, such as REDnode's rednode-app.json, without unpacking anything else.
+ * A file larger than `maxBytes`, encrypted, or packed in a way this does not read is left out of the answer.
+ */
+export async function readSmallFiles(file: string, name: string, paths: string[], maxBytes = 64 * 1024): Promise<Map<string, Buffer>> {
+  const out = new Map<string, Buffer>();
+  if (!paths.length) return out;
+  if (/\.7z$/i.test(name)) {
+    for (const p of paths) {
+      try {
+        const { stdout } = await run('7z', ['e', '-so', '-p', '--', file, p], { encoding: 'buffer', maxBuffer: maxBytes + 1 });
+        if (stdout.length <= maxBytes) out.set(p, stdout);
+      } catch {
+        // Too large, or unreadable: the caller reports it as missing.
+      }
+    }
+    return out;
+  }
+  const wanted = new Set(paths);
+  const records = (await zipRecords(file)).filter((r) => wanted.has(r.path));
+  const fh = await open(file, 'r');
+  try {
+    for (const r of records) {
+      if (r.encrypted || r.size > maxBytes || r.compressedSize > maxBytes * 2 || (r.method !== 0 && r.method !== 8)) continue;
+      const head = Buffer.alloc(30);
+      await fh.read(head, 0, 30, r.offset);
+      if (head.readUInt32LE(0) !== LOCAL) continue;
+      const data = Buffer.alloc(r.compressedSize);
+      await fh.read(data, 0, r.compressedSize, r.offset + 30 + head.readUInt16LE(26) + head.readUInt16LE(28));
+      try {
+        const body = r.method === 8 ? inflateRawSync(data, { maxOutputLength: maxBytes }) : data;
+        out.set(r.path, body);
+      } catch {
+        // Damaged or larger than it said.
+      }
+    }
+  } finally {
+    await fh.close();
+  }
+  return out;
+}
+
+async function zipRecords(file: string): Promise<ZipRecord[]> {
   const fh = await open(file, 'r');
   try {
     const { size } = await fh.stat();
@@ -73,28 +129,39 @@ export async function listZip(file: string): Promise<ArchiveEntry[]> {
     if (cdSize > 256 * 1024 ** 2) throw new ArchiveError('The zip file\'s index is too large to check.');
 
     const cd = await read(cdOffset, cdSize);
-    const entries: ArchiveEntry[] = [];
+    const entries: ZipRecord[] = [];
     let p = 0;
     for (let n = 0; n < count; n++) {
       if (p + 46 > cd.length || cd.readUInt32LE(p) !== CENTRAL) throw new ArchiveError('The zip file is damaged: its index is cut short.');
       const flags = cd.readUInt16LE(p + 8);
+      const method = cd.readUInt16LE(p + 10);
+      let csize: number = cd.readUInt32LE(p + 20);
       let usize: number = cd.readUInt32LE(p + 24);
+      let offset: number = cd.readUInt32LE(p + 42);
       const nameLength = cd.readUInt16LE(p + 28);
       const extraLength = cd.readUInt16LE(p + 30);
       const commentLength = cd.readUInt16LE(p + 32);
       const nameBytes = cd.subarray(p + 46, p + 46 + nameLength);
       // Bit 11: the name is UTF-8. Otherwise it is the old DOS code page; plain ASCII reads the same either way.
       const path = (flags & 0x800 ? nameBytes.toString('utf8') : nameBytes.toString('latin1')).replace(/\\/g, '/');
-      if (usize === 0xffffffff) {
+      if (usize === 0xffffffff || csize === 0xffffffff || offset === 0xffffffff) {
+        // The zip64 extra field holds, in this order, only the values that are 0xffffffff above.
         const extra = cd.subarray(p + 46 + nameLength, p + 46 + nameLength + extraLength);
         for (let e = 0; e + 4 <= extra.length;) {
           const id = extra.readUInt16LE(e);
           const len = extra.readUInt16LE(e + 2);
-          if (id === 0x0001 && len >= 8) { usize = Number(extra.readBigUInt64LE(e + 4)); break; }
+          if (id === 0x0001) {
+            let at = e + 4;
+            const next = (): number => { const v = at + 8 <= e + 4 + len ? Number(extra.readBigUInt64LE(at)) : -1; at += 8; return v; };
+            if (usize === 0xffffffff) usize = next();
+            if (csize === 0xffffffff) csize = next();
+            if (offset === 0xffffffff) offset = next();
+            break;
+          }
           e += 4 + len;
         }
       }
-      if (!path.endsWith('/')) entries.push({ path, size: usize, encrypted: (flags & 1) === 1 });
+      if (!path.endsWith('/')) entries.push({ path, size: usize, encrypted: (flags & 1) === 1, method, compressedSize: csize, offset });
       p += 46 + nameLength + extraLength + commentLength;
     }
     return entries;

@@ -78,8 +78,10 @@ export async function start({ showUnchecked = false, viewer, checksSecret, index
     for (const v of Object.keys(m.versions)) {
       const ok = !(m.id === 'core-lib' && v === '1.3.0');
       const runsCode = m.id === 'core-lib' ? ['red4ext/plugins/core/core.dll'] : [];
+      // pinned-hud's file is a REDnode package only, so the in-game browser could install it (though core-lib is not).
+      const rednode = m.id === 'pinned-hud' ? { only: true, problems: [], packages: [{ id: 'pinned-hud', name: 'Pinned HUD', version: v, folder: 'pinned-hud', window: false, hud: true, node: false, service: false, permissions: [] }] } : undefined;
       site.recordCheck({ mod: m.id, version: v, ok, checkedAt: '2026-10-20T00:00:00Z', report: [],
-        downloads: [{ name: `${m.id}-${v}.zip`, size: 1000, sha256: 'ab'.repeat(32), contents: { files: 2, size: 5000, kinds: { archive: 1, plugin: runsCode.length }, runsCode }, scan: { scanner: 'ClamAV', clean: true, findings: [] } }] });
+        downloads: [{ name: `${m.id}-${v}.zip`, size: 1000, sha256: 'ab'.repeat(32), contents: { files: 2, size: 5000, kinds: { archive: 1, plugin: runsCode.length }, runsCode, ...(rednode ? { rednode } : {}) }, scan: { scanner: 'ClamAV', clean: true, findings: [] } }] });
     }
   }
   const catalog = new Catalog(indexPath, site.path, { showUnchecked });

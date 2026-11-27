@@ -15,6 +15,8 @@ How to keep it (the convention in every Edgemodders repo, 2026-10-19):
 ### New
 
 - REDnode is a mod type: in-game windows, HUD widgets and Node mods that run in REDnode. Browse them with the REDnode tile or the Type filter, and pick the type when you publish one.
+- A mod page lists the REDnode packages in its download (a window, a HUD widget, a Node mod or a service, the REDnode version it needs and the permissions it asks for), and says when it can install from the game.
+- The merge checks read each REDnode package's `rednode-app.json`: one that is broken fails the check, as does a mod of type REDnode with no package. A REDnode Node mod counts as code that runs with your permissions, like a game plugin.
 - Signing in from VS Code ends on an EDGEmods page in your browser that says to go back to VS Code, instead of on Auth0's page.
 - Sign in with GitHub, Google or an email address, through Auth0. Signed in, you can see where each mod comes from; browsing still needs no account.
 - Likes: a heart on every mod card and mod page, a Most liked sort on the browse page, and your liked mods on your account page.

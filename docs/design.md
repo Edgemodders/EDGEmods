@@ -447,6 +447,16 @@ In a trial EDGEkit, **Connect an assistant (MCP)** offered its three choices. Th
 | The app | One REDnode package, `edgemods`: a window (search, the REDnode mods, a mod's page, Install, Installed, Remove, Update) and a Node mod. The Node mod does every network call, the downloads, the checks and the files, and talks to the page over `channel`. The page uses REDnode's UI kit (`rednode://ui/rednode-ui.js`, the `edge` theme), shows text with `textContent`, and shows the About text the site has already sanitized, under a CSP that allows no outside scripts. It needs the `admin` permission, which the player allows in REDnode's Mod Manager |
 | The pack and its release | `rednode/` in this repository, laid out like REDnode's packs: `pack.json`, `changelog.md`, `apps/edgemods/`, `nexus/` (`nexus.json`, `description.bbcode`). A release workflow borrowed from REDnode's `release.yml`: notes from the changelog, EDGErepo's Nexus tool at `v1` (EDGErepo has no shared workflow, only this tool, 2026-11-27), the zip laid out as `red4ext/plugins/REDnode/apps/edgemods/`, a GitHub release, then the Nexus page. The Nexus page and its number are the owner's to make; every release needs the owner's yes |
 
+**Decided (the owner, 2026-11-27):** the browser installs into `Documents\REDnode\EDGEmods`; it signs in with the device code; RN2 and RN4 are built now, and the release (RN5) and the Nexus page wait for the owner's yes.
+
+**Built:**
+- **RN1, 2026-11-27:** the type.
+- **RN2, 2026-11-27:**
+  - `packages/checks` reads each `rednode-app.json` (`readSmallFiles`, `rednodeContents`, `withRednode` in `src/contents.ts`) and records `contents.rednode` per download. The rules are in [registry](registry.html), "The downloads".
+  - The server's cards have `inGame`, and `GET /api/v1/mods?ingame=1` lists only those mods.
+  - Each plan file has `rednode`, each plan mod `inGame`, and the plan itself `inGame`.
+  - The mod page lists the packages and says when the mod installs from the game.
+
 **In slices:**
 
 | Slice | Builds | The test proves |

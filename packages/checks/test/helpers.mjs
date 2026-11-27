@@ -3,7 +3,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crc32 } from 'node:zlib';
+import { crc32, deflateRawSync } from 'node:zlib';
 
 export const exampleDir = fileURLToPath(new URL('../../../examples/example-mod/', import.meta.url));
 
@@ -15,29 +15,34 @@ export function makeZip(entries) {
   for (const e of entries) {
     const name = Buffer.from(e.path, 'utf8');
     const data = Buffer.from(e.data ?? '');
+    // e.deflate packs the data as most zip tools do (method 8); otherwise it is stored.
+    const packed = e.deflate ? deflateRawSync(data) : data;
+    const method = e.deflate ? 8 : 0;
     const flags = 0x800 | (e.encrypted ? 1 : 0);
     const crc = crc32(data);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
     local.writeUInt16LE(flags, 6);
+    local.writeUInt16LE(method, 8);
     local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(packed.length, 18);
     local.writeUInt32LE(data.length, 22);
     local.writeUInt16LE(name.length, 26);
-    locals.push(local, name, data);
+    locals.push(local, name, packed);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(flags, 8);
+    central.writeUInt16LE(method, 10);
     central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(packed.length, 20);
     central.writeUInt32LE(data.length, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt32LE(offset, 42);
     centrals.push(central, name);
-    offset += 30 + name.length + data.length;
+    offset += 30 + name.length + packed.length;
   }
   const cd = Buffer.concat(centrals);
   const end = Buffer.alloc(22);

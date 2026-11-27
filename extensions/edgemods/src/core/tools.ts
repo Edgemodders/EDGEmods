@@ -114,7 +114,7 @@ export async function modInfo(api: Api, id: string): Promise<ToolResult> {
     `${m.name} (id ${m.id}), version ${r.version}, by ${m.author}. ${m.summary}`,
     `Type ${TYPE_LABELS[m.type] ?? m.type}${m.tags.length ? `; tags ${m.tags.join(', ')}` : ''}. License ${m.license}.${m.adult ? ' 18+.' : ''}`,
     `${m.downloads} downloads, ${m.likes} likes. First published ${day(m.firstPublished)}, updated ${day(r.publishedAt)}${r.gameVersion ? `, tested with game ${r.gameVersion}` : ''}.`,
-    m.runsCode ? 'It contains a game plugin or program: code that runs with the player\'s permissions. Normal for frameworks; install it only from authors the player trusts.' : 'It contains no game plugins or programs.',
+    m.runsCode ? 'It contains a game plugin, a program or a REDnode Node mod: code that runs with the player\'s permissions. Normal for frameworks; install it only from authors the player trusts.' : 'It contains no game plugins, programs or REDnode Node mods.',
     r.check ? `EDGEmods checked this release on ${day(r.check.checkedAt)}${r.check.ok ? '' : ' and it did not pass'}.` : 'EDGEmods has not checked this release yet.',
     '',
     `Files of ${r.version}:`,

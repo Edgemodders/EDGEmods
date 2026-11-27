@@ -15,7 +15,7 @@ export function card(ctx: PageContext, c: Card, now = Date.now()): Html {
     <div class="img"><img src="${imageUrl(c.id, c.card)}" alt="" loading="lazy" width="640" height="320">
       <div class="flags"><span class="tag solid y">${typeLabel(c.type)}</span>
         <span class="right">${fresh ? html`<span class="tag solid g">New</span>` : ''}${updated ? html`<span class="tag solid c">Updated</span>` : ''}${
-          c.runsCode ? html`<span class="tag solid r" title="Contains a game plugin or program that runs code">Runs code</span>` : ''}${c.adult ? html`<span class="tag solid r">18+</span>` : ''}</span></div></div>
+          c.runsCode ? html`<span class="tag solid r" title="Contains a game plugin, a program or a REDnode Node mod: code that runs with your permissions">Runs code</span>` : ''}${c.adult ? html`<span class="tag solid r">18+</span>` : ''}</span></div></div>
     <div class="body">
       <a class="name" href="/mods/${c.id}">${c.name}</a>
       <span class="by">by ${c.author}</span>

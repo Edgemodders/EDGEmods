@@ -7,7 +7,7 @@
 // in that release's own requirements, so the choice is repeated until it settles.
 
 import { compareVersions, isModRequirement, isPrerelease, satisfies, type Requirement } from '@edgemodders/edgemods-format';
-import type { ReleaseFile, ReleaseView } from './catalog.js';
+import type { RednodePackage, ReleaseFile, ReleaseView } from './catalog.js';
 
 export const MAX_DEPTH = 20;
 
@@ -30,6 +30,8 @@ export interface PlanFile {
   sha256?: string;
   /** EDGEmods' download link; only for people who are signed in. */
   download?: string;
+  /** The REDnode packages in the file, from its release check; `only` when the file is nothing else. */
+  rednode?: { only: boolean; packages: RednodePackage[] };
 }
 
 export interface PlanMod {
@@ -47,6 +49,8 @@ export interface PlanMod {
    * library already has at a release every one of these accepts (docs/design.md, "Already installed").
    */
   wants: { version: string; exact?: boolean; by: string }[];
+  /** Every file to install is REDnode packages only, so REDnode's in-game browser can install this mod. */
+  inGame: boolean;
 }
 
 export interface PlanLink {
@@ -66,6 +70,8 @@ export interface Plan {
   problems: string[];
   /** Bytes, all files in the plan. */
   size: number;
+  /** Every mod in the plan can install from the game (PlanMod.inGame); otherwise it needs EDGEdeck. */
+  inGame: boolean;
 }
 
 interface Constraint {
@@ -76,7 +82,7 @@ interface Constraint {
 
 export function resolvePlan(source: PlanSource, request: PlanRequest, download?: (mod: string, version: string, file: string) => string): Plan {
   const root = source(request.mod);
-  const empty = (problem: string): Plan => ({ mod: request.mod, mods: [], links: [], problems: [problem], size: 0 });
+  const empty = (problem: string): Plan => ({ mod: request.mod, mods: [], links: [], problems: [problem], size: 0, inGame: false });
   if (!root) return empty(`"${request.mod}" is not on EDGEmods.`);
   const rootRelease = request.version ? root.releases.find((r) => r.version === request.version) : defaultRelease(root.releases);
   if (!rootRelease) return empty(`${root.name} has no release ${request.version} on EDGEmods.`);
@@ -128,10 +134,12 @@ export function resolvePlan(source: PlanSource, request: PlanRequest, download?:
       offered: release.files.filter((f) => !selected.includes(f)).map(asPlanFile),
       neededBy: [...(walk.neededBy.get(id) ?? [])],
       wants: (walk.constraints.get(id) ?? []).map((c) => ({ version: c.version, ...(c.exact ? { exact: true } : {}), by: c.by })),
+      inGame: selected.length > 0 && selected.every((f) => asPlanFile(f).rednode?.only === true),
     };
   });
   return {
     mod: request.mod,
+    inGame: mods.length > 0 && mods.every((m) => m.inGame),
     mods,
     links: [...walk.links.values()],
     problems: [...new Set(walk.problems)],
@@ -225,7 +233,9 @@ function installOrder(root: string, edges: Map<string, string[]>): string[] {
 }
 
 function planFile(f: ReleaseFile, release: ReleaseView, mod: string, download?: (mod: string, version: string, file: string) => string): PlanFile {
-  const sha256 = release.check?.downloads.find((d) => d.name === f.name)?.sha256;
+  const check = release.check?.downloads.find((d) => d.name === f.name);
+  const sha256 = check?.sha256;
+  const rednode = check?.contents.rednode;
   return {
     name: f.name,
     role: f.role,
@@ -233,6 +243,7 @@ function planFile(f: ReleaseFile, release: ReleaseView, mod: string, download?: 
     ...(f.title ? { title: f.title } : {}),
     size: f.size,
     ...(sha256 ? { sha256 } : {}),
+    ...(rednode?.packages?.length ? { rednode: { only: Boolean(rednode.only), packages: rednode.packages } } : {}),
     ...(download ? { download: download(mod, release.version, f.name) } : {}),
   };
 }

@@ -28,8 +28,26 @@ export interface DownloadCheck {
   name: string;
   size: number;
   sha256: string;
-  contents: { files: number; size: number; kinds: Record<string, number>; runsCode: string[] };
+  contents: {
+    files: number; size: number; kinds: Record<string, number>; runsCode: string[];
+    /** From the merge checks (packages/checks, RednodeContents). */
+    rednode?: { only: boolean; packages: RednodePackage[] };
+  };
   scan?: { scanner: string; clean: boolean; findings: string[] };
+}
+
+/** A REDnode package in a download, as the merge checks read it from its rednode-app.json. */
+export interface RednodePackage {
+  id: string;
+  name: string;
+  version: string;
+  folder: string;
+  window: boolean;
+  hud: boolean;
+  node: boolean;
+  service: boolean;
+  permissions: string[];
+  rednode?: string;
 }
 
 export interface ReleaseView {
@@ -58,6 +76,8 @@ export interface Card {
   lastUpdated?: string;
   adult: boolean;
   runsCode: boolean;
+  /** The shown release has a file that is REDnode packages only, so REDnode's in-game browser can install it. */
+  inGame: boolean;
   card: string;
   likes: number;
   downloads: number;
@@ -139,6 +159,8 @@ export interface Query {
   tag: string[];
   needs: string[];
   nocode: boolean;
+  /** Only mods REDnode's in-game browser can install (Card.inGame). */
+  ingame?: boolean;
   sort: Sort;
   page: number;
   /** Adult mods are left out unless the person opted in (never for visitors). */
@@ -252,6 +274,8 @@ export class Catalog {
         SELECT m.*, v.version, v.size, v.published_at AS shown_at, v.requirements AS reqs,
           EXISTS (SELECT 1 FROM site.release_checks c, json_each(c.downloads) d
                   WHERE c.mod_id = m.id AND c.version = v.version AND json_array_length(d.value, '$.contents.runsCode') > 0) AS runs_code,
+          EXISTS (SELECT 1 FROM site.release_checks c, json_each(c.downloads) d
+                  WHERE c.mod_id = m.id AND c.version = v.version AND json_extract(d.value, '$.contents.rednode.only') = 1) AS in_game,
           (SELECT count(*) FROM site.likes l WHERE l.mod_id = m.id) AS likes,
           (SELECT count(*) FROM site.downloads d WHERE d.mod_id = m.id) AS downloads,
           coalesce((SELECT o.adult FROM site.mod_overrides o WHERE o.mod_id = m.id), m.adult) AS adult_now
@@ -289,6 +313,7 @@ export class Catalog {
         });
       }
       if (skip !== 'nocode' && query.nocode) parts.push('s.runs_code = 0');
+      if (query.ingame) parts.push('s.in_game = 1');
       return { sql: parts.length ? `WHERE ${parts.join(' AND ')}` : '', params };
     };
 
@@ -487,6 +512,7 @@ function toCard(r: Row): Card {
     lastUpdated: r.shown_at ?? undefined,
     adult: Boolean(r.adult_now ?? r.adult),
     runsCode: Boolean(r.runs_code),
+    inGame: Boolean(r.in_game),
     card: r.card,
     likes: r.likes ?? 0,
     downloads: r.downloads ?? 0,

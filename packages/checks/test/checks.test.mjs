@@ -175,6 +175,28 @@ test('a game plugin passes, and the report says it runs code', async () => {
   assert.match(report, /run code with the player's permissions/);
 });
 
+test('a REDnode mod: its packages are recorded; the type needs one', async () => {
+  const w = goodWorld();
+  setManifest(w, (m) => { m.type = 'rednode'; });
+  const none = await run(w);
+  assert.equal(none.ok, false);
+  assert.ok(none.steps.some((s) => s.issues.some((i) => i.level === 'error' && /type is REDnode, but no download/.test(i.message))));
+
+  const w2 = goodWorld();
+  setManifest(w2, (m) => { m.type = 'rednode'; });
+  for (const a of w2.release.assets) {
+    const bytes = makeZip([
+      { path: 'red4ext/plugins/REDnode/apps/radio/rednode-app.json', data: JSON.stringify({ id: 'radio', name: 'Radio', version: '1.0.0', entry: 'index.html', width: 300, height: 200 }), deflate: true },
+      { path: 'red4ext/plugins/REDnode/apps/radio/index.html', data: '<p>radio</p>' },
+    ]);
+    Object.assign(a, { bytes, size: bytes.length });
+  }
+  const result = await run(w2);
+  assert.equal(result.ok, true, JSON.stringify(result.steps.filter((s) => s.status !== 'passed')));
+  assert.equal(result.downloads[0].contents.rednode.only, true);
+  assert.equal(result.downloads[0].contents.rednode.packages[0].id, 'radio');
+});
+
 test('the report on failure explains what to do and keeps mod text from becoming markup', async () => {
   const w = goodWorld();
   setManifest(w, (m) => { m.name = 'Evil <img src=x> @everyone *bold*'; });

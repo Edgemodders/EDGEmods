@@ -4,7 +4,7 @@
 
 import { isModRequirement, type Requirement } from '@edgemodders/edgemods-format';
 import { REPORT_REASONS } from '../site-store.js';
-import type { Catalog, ModView, ReleaseFile, ReleaseView } from '../catalog.js';
+import type { Catalog, ModView, RednodePackage, ReleaseFile, ReleaseView } from '../catalog.js';
 import { html, raw, type Html } from '../html.js';
 import { resolvePlan } from '../plan.js';
 import { ago, bytes, date, KIND_LABELS, needsWords, plural, typeLabel } from '../words.js';
@@ -114,10 +114,15 @@ function contentsPanel(r: ReleaseView): Html {
   for (const d of downloads) for (const [k, n] of Object.entries(d.contents.kinds)) kinds.set(k, (kinds.get(k) ?? 0) + n);
   const runs = downloads.flatMap((d) => d.contents.runsCode);
   const scanners = [...new Set(downloads.map((d) => d.scan?.scanner).filter(Boolean))];
+  const packages = downloads.flatMap((d) => d.contents.rednode?.packages ?? []);
+  const inGame = downloads.some((d) => d.contents.rednode?.only);
+  const what = (k: RednodePackage): string => [k.window && 'a window', k.hud && 'a HUD widget', k.node && 'a Node mod', k.service && 'a service'].filter(Boolean).join(', ') || 'a package';
   return html`<div class="panel${runs.length ? ' warn' : ''}">
     <p class="label">What's in the download</p>
-    ${runs.length ? html`<p class="gate">It has a <b>game plugin or program</b>: code that runs with your permissions. That is normal for frameworks; install mods like this from authors you trust.</p>` : ''}
+    ${runs.length ? html`<p class="gate">It has a <b>game plugin, a program or a REDnode Node mod</b>: code that runs with your permissions. That is normal for frameworks; install mods like this from authors you trust.</p>` : ''}
     <ul class="contents">${[...kinds].map(([k, n]) => html`<li>${n} × ${KIND_LABELS[k] ?? k}</li>`)}</ul>
+    ${packages.length ? html`<p class="label">REDnode</p><ul class="contents">${packages.map((k) => html`<li>${k.name} <span class="dim">· ${what(k)}${k.rednode ? ` · needs REDnode ${k.rednode}` : ''}${k.permissions.length ? ` · asks for ${k.permissions.join(', ')}` : ''}</span></li>`)}</ul>
+      ${inGame ? html`<p class="dim small">Installs from the game too, with the EDGEmods app in REDnode.</p>` : ''}` : ''}
     <p class="dim mono small">Checked${scanners.length ? html` and scanned (${scanners.join(', ')})` : ''} ${ago(r.check!.checkedAt)}</p>
     <details class="raw"><summary>Raw values</summary><pre>${downloads.map((d) => `${d.name}\nsha256 ${d.sha256}\n${d.contents.runsCode.map((p) => `runs code: ${p}`).join('\n')}`).join('\n\n')}</pre></details>
   </div>`;
