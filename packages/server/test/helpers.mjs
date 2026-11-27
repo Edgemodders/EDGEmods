@@ -93,7 +93,7 @@ export async function start({ showUnchecked = false, viewer, checksSecret, index
   const auth = tenant && {
     domain: tenant.domain, clientId: 'client-1', clientSecret: 'secret-1', sessionSecret: 's'.repeat(43),
     management: { domain: tenant.domain, clientId: 'mgmt-1', clientSecret: 'mgmt-secret' },
-    ...(tokens ? { audience: API, extensionClientId: 'vscode-1' } : {}),
+    ...(tokens ? { audience: API, extensionClientId: 'vscode-1', deviceClientId: 'rednode-1' } : {}),
   };
   const config = { host: '127.0.0.1', port: 0, dataDir: dir, indexPath, publicUrl: 'https://edgemods.test', checksSecret, indexSecret, showUnchecked, imageMaxAge: 60, auth, authProblems: [], admins, downloads };
   const accounts = new Accounts(config, site, auth && new Auth0(auth, `${config.publicUrl}/auth/callback`, (url, init) => tenant.fetch(url, init)));

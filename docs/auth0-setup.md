@@ -17,6 +17,7 @@ It takes about half an hour. Nothing on this page costs money.
 | Auth0 | The application "EDGEmods server" | Lets the server change a person's own profile: their name, email, linked sign-ins, deleting their account |
 | Your PC | A `.env` file | The values the server reads when it starts |
 | Auth0 | The application "EDGEmods for VS Code" (step 9, added at R4) | The VS Code extension's sign-in |
+| Auth0 | The application "EDGEmods in game" (step 10, added 2026-11-27) | The in-game browser's sign-in, with a code shown in the game |
 
 ## 1. The tenant
 
@@ -228,6 +229,35 @@ EDGEMODS_AUTH0_EXTENSION_CLIENT_ID=the VS Code application's client id
 
 The server then accepts this application's access tokens on its API and downloads, and tells the extension which tenant and client id to use, so the extension needs only the site's address (`http://localhost:8800` while testing). Then tell Claude it is done.
 
+## 10. The in-game browser's application (RN3)
+
+Added 2026-11-27, checked against Auth0's docs that day (Device Authorization Flow). The EDGEmods app in REDnode runs inside the game, where typing a password is awkward. So it signs in the way a TV app does:
+1. It shows a short code and an address.
+2. You open the address on your phone or PC, sign in as usual and confirm the code.
+3. The game is then signed in.
+
+It keeps a refresh token in REDnode's secrets, encrypted with your Windows account.
+
+1. **Applications** › **Applications** › **Create Application**.
+2. **Name:** `EDGEmods in game`. **Type:** Native. **Create**. Skip the quick start.
+3. **Settings** tab, **Application URIs**: leave every field empty. The device flow has no callback.
+4. Same tab, **Refresh Token Rotation** and **Refresh Token Expiration**: the same as step 9 (rotation on, overlap `60`; idle `2592000`, maximum `31557600`).
+5. Same tab, **Advanced Settings** › **Grant Types**: tick **Device Code** and **Refresh Token**. Untick everything else.
+6. **Credentials** tab: **Authentication Method** None.
+7. **Connections** tab: switch on `Username-Password-Authentication`, `google-oauth2` and `github`.
+8. **Save**. Copy the **Client ID** from the **Settings** tab. It is not secret.
+9. **Applications** › **APIs** › `EDGEmods API` › **Application Access** tab: find `EDGEmods in game`, **Edit**, **Grant Access** under **User-Delegated Access**. **Save**.
+
+The code's format is a tenant setting: **Settings** › **Advanced** › **Device Flow User Code Format**. The default is fine.
+
+Add one line to `.env`, then tell Claude it is done:
+
+```ini
+EDGEMODS_AUTH0_REDNODE_CLIENT_ID=the in-game application's client id
+```
+
+The server then accepts this application's tokens as it does the extension's, and `GET /api/v1/auth` gives the in-game app its client id.
+
 ## Later: the live site (R3h)
 
 The live site gets its own tenant, so test accounts and test settings never mix with players' accounts. When R3h comes:
@@ -240,5 +270,5 @@ The live site gets its own tenant, so test accounts and test settings never mix 
 | GitHub | A second OAuth App, `EDGEmods`, with the callback `https://login.edgemods.ai/login/callback` |
 | Email | Auth0's built-in email is for testing only: 10 emails a minute, from `no-reply@auth0user.net`. The live site sends through Amazon SES (on the same AWS account) from an `edgemods.ai` address |
 | Website application | Callback `https://edgemods.ai/auth/callback`, logout `https://edgemods.ai/` |
-| API, server application and VS Code application | As in steps 4, 5 and 9 |
-| Settings | The same names as steps 7 and 9, in `/etc/edgemods.env` on the server. `EDGEMODS_AUTH0_DOMAIN` is the custom domain, `login.edgemods.ai`, and one more line, `EDGEMODS_AUTH0_MANAGEMENT_DOMAIN`, holds the tenant's own domain (`edgemods.us.auth0.com`): Auth0's Management API takes its audience on the tenant's own domain, never the custom one. The service says at start if it is missing |
+| API, server application, VS Code application and in-game application | As in steps 4, 5, 9 and 10 |
+| Settings | The same names as steps 7, 9 and 10, in `/etc/edgemods.env` on the server. `EDGEMODS_AUTH0_DOMAIN` is the custom domain, `login.edgemods.ai`, and one more line, `EDGEMODS_AUTH0_MANAGEMENT_DOMAIN`, holds the tenant's own domain (`edgemods.us.auth0.com`): Auth0's Management API takes its audience on the tenant's own domain, never the custom one. The service says at start if it is missing |

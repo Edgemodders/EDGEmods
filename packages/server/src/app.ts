@@ -694,6 +694,8 @@ export function createApp(deps: AppDeps): express.Express {
       audience: auth0.config.audience,
       scope: 'openid profile email offline_access',
       connections: CONNECTIONS,
+      // The in-game browser signs in with a code shown in the game (Auth0's device flow).
+      ...(auth0.config.deviceClientId ? { device: { clientId: auth0.config.deviceClientId } } : {}),
     });
   });
 

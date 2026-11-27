@@ -75,19 +75,20 @@ export class Auth0 {
     return verifyJwt(token, { keys: await this.keysFor(token), issuer: this.issuer, audience: this.config.clientId, now: this.now(), nonce });
   }
 
-  /** Whether this server accepts the VS Code extension's access tokens. */
+  /** Whether this server accepts access tokens: the VS Code extension's, or the in-game browser's. */
   get acceptsTokens(): boolean {
-    return Boolean(this.config.audience && this.config.extensionClientId);
+    return Boolean(this.config.audience && (this.config.extensionClientId || this.config.deviceClientId));
   }
 
   /**
-   * Checks an access token the VS Code extension sent: this tenant, the EDGEmods API, made for the extension's own
-   * application (its `azp`). Throws with a sentence.
+   * Checks an access token the VS Code extension or the in-game browser sent: this tenant, the EDGEmods API, made for
+   * one of those two applications (its `azp`). Throws with a sentence.
    */
   async verifyAccessToken(token: string): Promise<Claims> {
     if (!this.acceptsTokens) throw new Error('this server does not take access tokens');
     const claims = verifyJwt(token, { keys: await this.keysFor(token), issuer: this.issuer, audience: this.config.audience!, now: this.now(), leewayMs: 0 });
-    if (claims.azp !== this.config.extensionClientId) throw new Error('the token was made for another application');
+    const ours = [this.config.extensionClientId, this.config.deviceClientId].filter(Boolean);
+    if (!ours.includes(claims.azp as string)) throw new Error('the token was made for another application');
     return claims;
   }
 

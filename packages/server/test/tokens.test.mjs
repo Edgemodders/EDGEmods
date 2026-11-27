@@ -28,7 +28,14 @@ describe('the extension\'s sign-in', () => {
     assert.deepEqual(await res.json(), {
       domain: tenant.domain, clientId: 'vscode-1', audience: API, scope: 'openid profile email offline_access',
       connections: { github: 'github', google: 'google-oauth2', email: 'Username-Password-Authentication' },
+      device: { clientId: 'rednode-1' },
     });
+  });
+
+  test('the in-game browser\'s tokens (its own application, the device flow) are accepted too', async () => {
+    const res = await t.get('/api/v1/me', { headers: bearer(tenant.access(GITHUB.sub, { azp: 'rednode-1' })) });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).signedIn, true);
   });
 
   test('a first token asks Auth0 who it is once, then keeps the person; a username comes next', async () => {
@@ -152,5 +159,9 @@ describe('without the extension\'s application', () => {
     const both = loadConfig({ ...base, EDGEMODS_AUTH0_EXTENSION_CLIENT_ID: 'v', EDGEMODS_AUTH0_AUDIENCE: API });
     assert.equal(both.auth.extensionClientId, 'v');
     assert.ok(!both.authProblems.some((p) => /VS Code/.test(p)));
+    const game = loadConfig({ ...base, EDGEMODS_AUTH0_REDNODE_CLIENT_ID: 'g' });
+    assert.equal(game.auth.deviceClientId, undefined);
+    assert.ok(game.authProblems.some((p) => /REDNODE_CLIENT_ID needs EDGEMODS_AUTH0_AUDIENCE/.test(p)));
+    assert.equal(loadConfig({ ...base, EDGEMODS_AUTH0_REDNODE_CLIENT_ID: 'g', EDGEMODS_AUTH0_AUDIENCE: API }).auth.deviceClientId, 'g');
   });
 });
