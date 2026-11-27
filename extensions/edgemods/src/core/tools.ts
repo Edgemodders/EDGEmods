@@ -55,7 +55,7 @@ const NOTES_MAX = 600;
 
 const TYPE_LABELS: Record<string, string> = {
   gameplay: 'Gameplay', visual: 'Visual', characters: 'Characters', clothing: 'Clothing', weapons: 'Weapons', vehicles: 'Vehicles',
-  audio: 'Audio', ui: 'UI', world: 'World', quests: 'Quests', utility: 'Utility', 'modding-resource': 'Modding resource', other: 'Other',
+  audio: 'Audio', ui: 'UI', world: 'World', quests: 'Quests', rednode: 'REDnode', utility: 'Utility', 'modding-resource': 'Modding resource', other: 'Other',
 };
 
 export function bytes(n: number): string {

@@ -22,7 +22,7 @@
   // The site's words for the types (packages/server/src/words.ts).
   const TYPES = {
     gameplay: 'Gameplay', visual: 'Visual', characters: 'Characters', clothing: 'Clothing', weapons: 'Weapons', vehicles: 'Vehicles',
-    audio: 'Audio', ui: 'UI', world: 'World', quests: 'Quests', utility: 'Utility', 'modding-resource': 'Modding resource', other: 'Other',
+    audio: 'Audio', ui: 'UI', world: 'World', quests: 'Quests', rednode: 'REDnode', utility: 'Utility', 'modding-resource': 'Modding resource', other: 'Other',
   };
 
   let filters = { q: '', list: 'updated', type: [], tag: [] };

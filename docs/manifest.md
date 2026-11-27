@@ -33,7 +33,7 @@ Each release's tag points at a commit whose `edgemods.json` describes that relea
 | `author.github` | yes | The GitHub login that owns the repository | Must match the repository's owner (checked by the merge checks) |
 | `credits` | no | Others who helped | Up to 20 of `{ "name", "for" }` |
 | `license` | yes | The mod's license | An SPDX identifier (`MIT`, `CC-BY-4.0`) or the terms in a few words, up to 64 characters |
-| `type` | yes | What the mod mainly is | One of `gameplay`, `visual`, `characters`, `clothing`, `weapons`, `vehicles`, `audio`, `ui`, `world`, `quests`, `utility`, `modding-resource`, `other` |
+| `type` | yes | What the mod mainly is | One of `gameplay`, `visual`, `characters`, `clothing`, `weapons`, `vehicles`, `audio`, `ui`, `world`, `quests`, `rednode`, `utility`, `modding-resource`, `other`. `rednode` is a [REDnode](https://github.com/Edgemodders/REDnode) package: an in-game window, a HUD widget, a Node mod or a service |
 | `tags` | no | Words players search for | Up to 10, lowercase with dashes, 2 to 24 characters each |
 | `gameVersion` | no (a warning) | The game version it was tested with | Like `2.31` or `2.12a` |
 | `adult` | no | The author says it has adult content | `true` or `false`. EDGEmods' own review can add the tag too |

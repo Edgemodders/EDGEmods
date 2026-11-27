@@ -103,6 +103,7 @@
         "ui",
         "world",
         "quests",
+        "rednode",
         "utility",
         "modding-resource",
         "other"

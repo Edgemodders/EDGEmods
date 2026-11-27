@@ -82,7 +82,7 @@ server.registerTool(
     inputSchema: {
       query: z.string().max(200).optional().describe('Words to look for; leave out to list'),
       sort: z.enum(SORTS).optional().describe('relevance (with words), updated (the default), new, downloads, likes or name'),
-      type: z.string().max(40).optional().describe('Only this type: gameplay, visual, characters, clothing, weapons, vehicles, audio, ui, world, quests, utility, modding-resource, other'),
+      type: z.string().max(40).optional().describe('Only this type: gameplay, visual, characters, clothing, weapons, vehicles, audio, ui, world, quests, rednode (REDnode packages: in-game windows, HUD widgets, Node mods), utility, modding-resource, other'),
       tag: z.string().max(40).optional().describe('Only mods with this tag'),
       page: z.number().int().min(1).max(1000).optional().describe('Page, 24 mods each'),
     },

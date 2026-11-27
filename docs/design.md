@@ -417,6 +417,46 @@ In a trial EDGEkit, **Connect an assistant (MCP)** offered its three choices. Th
 | Outside links | Shown in the plan for the player to get themselves; never fetched |
 | A mod removed later | A requirement that is no longer on EDGEmods (removed, hidden, blocked) is a problem in the plan; the mod that needs it shows a warning on its page |
 
+## REDnode mods and the in-game browser (Proposed)
+
+**Asked by the owner (2026-11-27):**
+- REDnode mods become a type the website lists and filters by.
+- They install from EDGEkit like any other mod, through EDGEdeck.
+- A separate REDnode app runs in the game. It browses only the REDnode mods on EDGEmods, and installs and runs them right away in the game.
+- It is built, bundled and released like REDnode's own app packs, Nexus page included.
+
+**What a REDnode mod is** (REDnode at 3c14c05, 2026-11-27; REDnode's `docs/overlay-apps.md`):
+- A REDnode mod is a package: a folder with a `rednode-app.json`.
+- It can be any of these, or several at once:
+  - a window (an `entry` page);
+  - a HUD widget (`kind: "hud"`);
+  - a Node mod (`main`);
+  - a service (`service`).
+- Installed, a package lives in `red4ext/plugins/REDnode/apps/<id>/`. EDGEdeck deploys any zip with a `rednode-app.json` there (EDGEdeck kind `rednode`, since 0.20.0).
+- REDnode watches its app folders while the game runs. A new folder starts at once if its `open` is true, a changed manifest restarts its package, and a removed folder stops it.
+- A Node mod is full Node with the player's permissions; nothing sandboxes it. A page is sandboxed, with no file access.
+
+| Part | Proposal |
+|---|---|
+| The type | `rednode` joins `MOD_TYPES` (label "REDnode"), so a modder can pick it, the website lists it as a type tile and filter, and the API's `type=rednode` finds them |
+| Detected, not only declared | The merge checks read each download's `rednode-app.json` files. The release check records, per file, the REDnode packages in it: id, name, version, what it is (window, HUD widget, Node mod, service), its permissions, the REDnode version it needs. It also records whether the file is **REDnode only**: every file inside a package folder, laid out as `red4ext/plugins/REDnode/apps/<id>/` or as package folders at the top. A new content kind `rednode`. A package with `main` or `service` counts as **runs code**, so the page warns about it as it does for plugins |
+| Which mods the in-game browser lists | Mods whose newest shown release has a REDnode-only file, whatever their declared type. `GET /api/v1/mods?ingame=1`. The install plan answers whether the whole chain can install in the game: every mod in it has a REDnode-only file chosen. Anything else (archives, redscript, a framework) needs EDGEdeck and a game restart, so the browser says "Install from EDGEkit" and opens nothing |
+| Where the browser installs | Not into the game folder, which is EDGEdeck's. Into a folder of its own that REDnode watches, `Documents\REDnode\EDGEmods\<id>\`, through REDnode's `admin.projectsFolder("EDGEmods")`; then `admin.setOpen(id, true)` runs it. Remove deletes the folder. Two catches: REDnode treats that folder as a development folder (hot reload), and a development copy wins over one in the game's apps folder. So the browser says when EDGEdeck has the same package, and does not install a second copy. **A REDnode request (proposed):** a watched folder for tools that install packages, without hot reload, below the game's apps folder in priority |
+| Sign-in | Downloads need an account, so the in-game app signs in with Auth0's device flow: it shows a short code and `edgemods.ai/activate`, and the player confirms on their phone or PC. This needs a third Auth0 application, a Native one with the Device Code grant (the owner's step). The server accepts its tokens as it accepts the extension's (`azp` from a list). The refresh token is kept in REDnode's `secrets`, encrypted with the player's Windows account. Browsing needs no sign-in |
+| Before installing | The same rules as the extension: the plan, one question that names every mod and version, what each package is, its permissions, and "runs code" when it does. Every file downloaded and checked against its SHA-256 before anything is unpacked. Each zip is unpacked through the same path rules as the merge checks, into a fresh folder first, then moved into place |
+| The app | One REDnode package, `edgemods`: a window (search, the REDnode mods, a mod's page, Install, Installed, Remove, Update) and a Node mod. The Node mod does every network call, the downloads, the checks and the files, and talks to the page over `channel`. The page uses REDnode's UI kit (`rednode://ui/rednode-ui.js`, the `edge` theme), shows text with `textContent`, and shows the About text the site has already sanitized, under a CSP that allows no outside scripts. It needs the `admin` permission, which the player allows in REDnode's Mod Manager |
+| The pack and its release | `rednode/` in this repository, laid out like REDnode's packs: `pack.json`, `changelog.md`, `apps/edgemods/`, `nexus/` (`nexus.json`, `description.bbcode`). A release workflow borrowed from REDnode's `release.yml`: notes from the changelog, EDGErepo's Nexus tool at `v1` (EDGErepo has no shared workflow, only this tool, 2026-11-27), the zip laid out as `red4ext/plugins/REDnode/apps/edgemods/`, a GitHub release, then the Nexus page. The Nexus page and its number are the owner's to make; every release needs the owner's yes |
+
+**In slices:**
+
+| Slice | Builds | The test proves |
+|---|---|---|
+| RN1 Type | `rednode` in the format, the schema, the website's labels, the extension and the MCP tools | A mod with `"type": "rednode"` validates, has its tile and filter |
+| RN2 Detection | The `rednode` kind and package list in the merge checks, the release check's record, the API's `ingame=1`, the plan's "installs in the game" | A test REDnode mod's page lists its package; it is found with `ingame=1` |
+| RN3 Device sign-in | The device flow on the server's side (the `azp` list) and in the app | Signed in from the game with a code |
+| RN4 The browser | The package: browse, a mod's page, install, run, remove, update | A REDnode mod from EDGEmods runs in the game seconds after Install, without a restart |
+| RN5 Release | The pack, its zip, the workflow, the Nexus page | The zip from the workflow, installed through EDGEdeck, shows the browser in the game |
+
 ## How it fits with the other EDGE tools
 
 | Tool | How |

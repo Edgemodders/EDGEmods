@@ -17,6 +17,8 @@ export const MOD_TYPES = [
   'ui',
   'world',
   'quests',
+  // A REDnode package (a folder with rednode-app.json): a window, a HUD widget, a Node mod or a service.
+  'rednode',
   'utility',
   'modding-resource',
   'other',

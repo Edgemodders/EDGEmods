@@ -80,6 +80,9 @@ test('the author login', () => {
 
 test('type and tags', () => {
   expectError((m) => { m.type = 'graphics'; }, 'type', '"graphics" is not one of them');
+  const rednode = example();
+  rednode.type = 'rednode';
+  assert.equal(validateManifest(rednode).ok, true, 'a REDnode package is a type');
   expectError((m) => { m.tags = ['Night City']; }, 'tags[0]', 'lowercase');
   expectError((m) => { m.tags = ['cars', 'cars']; }, 'tags[1]', 'twice');
   expectError((m) => { m.tags = Array.from({ length: 11 }, (_, i) => `tag-${i}`); }, 'tags', 'limit is 10');
