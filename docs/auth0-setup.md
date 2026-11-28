@@ -204,7 +204,7 @@ It is a **Native** application: it has no client secret, because anything shippe
    | Set Maximum Refresh Token Lifetime | on, `31557600` (a year: at the latest, you sign in again once a year) |
 
 6. Same tab, **Advanced Settings** › **Grant Types**: keep **Authorization Code** and **Refresh Token**. Untick anything else (Implicit, Device Code, Password).
-7. **Credentials** tab: **Authentication Method** None (a Native application's default).
+7. Nothing to set for the authentication method: a Native application has none (it holds no secret). The dashboard may show no **Credentials** tab for it; if it does, the method is **None**.
 8. **Connections** tab: switch on `Username-Password-Authentication`, `google-oauth2` and `github`, as for the website.
 9. **Save**. From the **Settings** tab, copy the **Client ID**. It is not secret.
 
@@ -243,7 +243,7 @@ It keeps a refresh token in REDnode's secrets, encrypted with your Windows accou
 3. **Settings** tab, **Application URIs**: leave every field empty. The device flow has no callback.
 4. Same tab, **Refresh Token Rotation** and **Refresh Token Expiration**: the same as step 9 (rotation on, overlap `60`; idle `2592000`, maximum `31557600`).
 5. Same tab, **Advanced Settings** › **Grant Types**: tick **Device Code** and **Refresh Token**. Untick everything else.
-6. **Credentials** tab: **Authentication Method** None.
+6. Nothing to set for the authentication method: a Native application has none (it holds no secret). The dashboard may show no **Credentials** tab for it; if it does, the method is **None**.
 7. **Connections** tab: switch on `Username-Password-Authentication`, `google-oauth2` and `github`.
 8. **Save**. Copy the **Client ID** from the **Settings** tab. It is not secret.
 9. **Applications** › **APIs** › `EDGEmods API` › **Application Access** tab: find `EDGEmods in game`, **Edit**, **Grant Access** under **User-Delegated Access**. **Save**.
