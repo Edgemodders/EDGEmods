@@ -388,6 +388,28 @@ R4d's first part (2026-11-22): the MCP server, `dist/mcp.js` in the extension, s
 | Install plan | The plan is correct, with no problems |
 | Errors | In words, with no stack traces: an unknown mod, a malformed id, the site down |
 
+**Scripted run, 2026-11-27** (EDGEweb's session, the owner's nightly run, against e07c678; not the owner's hand test). Setup:
+- the trial EDGEkit 1.143.2 with EDGEdeck 0.34.4, in a scratch profile;
+- a site on port 8801 with no sign-in;
+- `node dist/mcp.js --editor edgekit`.
+
+Every check came out as expected:
+
+| Check | Result |
+|---|---|
+| The six checks of 2026-11-25 | Passed again, now with four tools. No answer names github.com |
+| Annotations | `mods_install` is not read-only, not destructive, not idempotent, open world. The other three tools are read-only |
+| `mods_search` with type `rednode` | Not an error: "No mods for type rednode.", total 0. `mods_info` reads "It contains no game plugins, programs or REDnode Node mods." |
+| `mods_install` for an unknown mod | An error, and nothing opened. The text names the problem first ("EDGEmods cannot work out an install for nope.", the problem list), then ends "Nothing was sent to VS Code: the problems above stop the install." (EDGEmods' session had predicted that line first; the order as built is the better one) |
+| `mods_install` for the test mod | Not an error. It gives the plan and says the request was sent, that the answer shows in VS Code, and that EDGEdeck 0.34 is needed. The system opened `edgekit://edgemodders.edgemods/install/edgemods-test-mod/1.0.0` |
+| The link in the editor | VS Code asked "Allow 'EDGEmods' extension to open this URI?", then the mod's tab opened with "Installing downloads the files, which needs a free EDGEmods account." and Sign in. Nothing was downloaded. The log said "install edgemods-test-mod 1.0.0: asked" |
+| The website | `GET /api/v1/mods?ingame=1` gives 200, total 0. `/mods?type=rednode` gives 200, titled "REDnode mods · EDGEmods". `GET /api/v1/auth` gives 404 `no-sign-in` |
+
+Learned:
+- The system's link handler opens the editor registered for the scheme, in its default profile. Here that was the owner's own EDGEkit, not the scratch window. A scripted run cannot keep the link inside a scratch profile.
+- `openUri` runs the system's `explorer.exe`, not one in the server's working folder (a stand-in placed there was not used).
+- Not run: the case without EDGEdeck.
+
 In a trial EDGEkit, **Connect an assistant (MCP)** offered its three choices. The entry in VS Code's MCP servers list was not seen, because that build has no MCP: List Servers command. Wording noted for later:
 - "EDGEmods does not have that." does not name the mod.
 - A malformed id's message starts with the MCP SDK's "MCP error -32602: Input validation error".
